@@ -31,3 +31,5 @@ int main(void) {
 }
 
 //gcc -Wall -Werror -Wvla -fsanitize=address,undefined -o main main.c
+//git commit -a -m "blabla"
+//git push
