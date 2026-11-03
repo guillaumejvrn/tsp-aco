@@ -28,3 +28,5 @@ int main(void) {
     printf("ntm\n");
     return 0;
 }
+
+//gcc -Wall -Werror -Wvla -fsanitize=address,undefined -o main main.c
