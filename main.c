@@ -25,6 +25,7 @@ double distance_euc(Coord c1, Coord c2) {
 }
 
 int main(void) {
+    c = 11;
     printf("ntm\n");
     return 0;
 }
