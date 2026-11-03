@@ -1,13 +1,28 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 #define N = 50
 
-int coord = malloc(2*sizeof(int));
-int graphe = malloc( N * sizeof(coord));
+typedef struct  {
+    int x;
+    int y;
+} Coord;
 
-graphe = {1 : (10,8)};
-pheromone = {1 : {2 : 15}}
+typedef struct {
+    Coord* graphe;
+} Graphe;
 
+void affiche_point(Coord c) {
+    printf("Point : (%d, %d)\n", c.x, c.y);
+}
+
+double puissance_2(double n) {
+    return n*n;
+}
+
+double distance_euc(Coord c1, Coord c2) {
+    return sqrt(puissance_2(c1.x - c2.x) + puissance_2(c1.y - c2.y));
+}
 
 int main(void) {
     printf("ntm");
