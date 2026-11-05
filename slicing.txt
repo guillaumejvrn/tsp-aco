@@ -1,0 +1,13 @@
+Etapes possibles du tsp:
+
+- vérifier qu'il existe bien un cycle eulérien dans le graphe
+- définir un cycle particulier
+- définir les cycles possibles
+- choisir le cycle le plus court
+
+
+caractéristiques:
+
+- calculer longueur d'un cycle
+- stocker le cycle
+- comparer ces longueurs
