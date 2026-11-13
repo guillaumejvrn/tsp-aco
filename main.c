@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <time.h>
+#include <float.h>
 
 #define N 50
 
@@ -67,6 +68,54 @@ Resultat chemin_aleatoire(Graphe g, int n) {
     return res;
 }
 
+double calculer_poids(Graphe g, Chemin c, int n) {
+    double total = 0.0;
+    for (int i = 0; i < n - 1; i++) {
+        total += distance_euc(g.graphe[c[i]], g.graphe[c[i + 1]]);
+    }
+    total += distance_euc(g.graphe[c[n - 1]], g.graphe[c[0]]);
+    return total;
+}
+
+void explorer_permutations(Graphe g, int n, Chemin actuel, int debut, Resultat* meilleur) {
+    if (debut == n) {
+        double p = calculer_poids(g, actuel, n);
+        if (p < meilleur->poids) {
+            meilleur->poids = p;
+            for (int i = 0; i < n; i++) {
+                meilleur->chemin[i] = actuel[i];
+            }
+        }
+        return;
+    }
+
+    for (int i = debut; i < n; i++) {
+        // 1. Échange
+        int temp = actuel[debut];
+        actuel[debut] = actuel[i];
+        actuel[i] = temp;
+
+        explorer_permutations(g, n, actuel, debut + 1, meilleur);
+
+        temp = actuel[debut];
+        actuel[debut] = actuel[i];
+        actuel[i] = temp;
+    }
+}
+
+Resultat force_brute(Graphe g, int n) {
+    Resultat meilleur;
+    meilleur.poids = DBL_MAX; 
+    meilleur.chemin = creer_chemin(n);
+
+    Chemin actuel = creer_chemin(n);
+
+    explorer_permutations(g, n, actuel, 1, &meilleur);
+
+    free(actuel);
+    return meilleur;
+}
+
 /////////////// PART 4
 
 int main(void) {
@@ -92,5 +141,18 @@ int main(void) {
     printf("\n");
 
     free(mon_res.chemin);
+
+    Resultat res_fb = force_brute(g, n);
+printf("Force brute - Poids : %f\n", res_fb.poids);
+printf("Meilleur chemin : ");
+for (int i = 0; i < n; i++) {
+    printf("%d ", res_fb.chemin[i]);
+}
+printf("\n");
+
+free(res_fb.chemin);
     return 0;
 }
+
+
+// gcc -Wall -Wextra -Werror -Wvla -fsanitize=address,undefined -o main main.c -lm && ./main
