@@ -20,12 +20,12 @@ typedef struct {
     Chemin chemin;
 } Resultat;
 
-Resultat* explorer(Graphe graphe, int n, double** pheromone, Coord sommet_de_départ, double Q, double alpha, double beta) {
+Resultat* explorer(int n, double** pheromone, Coord sommet_de_départ, double Q, double alpha, double beta) {
     Resultat* r = malloc(sizeof(Resultat));
     return r;
 }
 
-void évaporation(Graphe graphe, int n, double** pheromone, Chemin* chemins, int n_chemins, float rho) {
+void évaporation(int n, double** pheromone, float rho) {
     return;
 }
 
@@ -45,15 +45,13 @@ Resultat* ACO(Graphe graphe, int n, int nb_itérations, int nb_fourmis, double a
     best_path = NULL;
     int best_cost = INT_MAX;
     for (int i = 0; i < nb_itérations; i++) {
-        Chemin* chemins = malloc(nb_fourmis*sizeof(Chemin));
         for (int j = 0; j < nb_fourmis; j++) {
             int ville_choisie = rand() % n;
-            Resultat* r = explorer(graphe, n, pheromone, graphe.graphe[ville_choisie], Q, alpha, beta);
+            Resultat* r = explorer(n, pheromone, graphe.graphe[ville_choisie], Q, alpha, beta);
             if (r -> poids < best_cost) {
                 best_cost = r -> poids;
                 best_path = r -> chemin;
             }
-            chemins[j] = r -> chemin;
         }
         évaporation(n, pheromone, rho);
     }
