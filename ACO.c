@@ -55,7 +55,7 @@ Resultat* ACO(Graphe graphe, int n, int nb_itérations, int nb_fourmis, double a
             }
             chemins[j] = r -> chemin;
         }
-        évaporation(graphe, n, pheromone, chemins, nb_fourmis, rho);
+        évaporation(n, pheromone, rho);
     }
 
     resultat -> poids = best_cost;
