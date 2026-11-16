@@ -5,7 +5,7 @@
 #include <math.h>
 #include <time.h>
 #include <float.h>
-#define N 100
+#define N 1000
 
 typedef struct {
     int x;
@@ -164,6 +164,8 @@ Resultat* explorer(Graphe graphe, int n, double** pheromone, int sommet_depart, 
     int actuel = sommet_depart;
     int nb_visites = 1;
 
+    double poids = 0.0;
+
     resultat->chemin[0] = sommet_depart;
     visite[sommet_depart] = 1;
 
@@ -239,6 +241,8 @@ Resultat* explorer(Graphe graphe, int n, double** pheromone, int sommet_depart, 
             graphe.graphe[prochain]
         );
 
+        poids += distance;
+
         pheromone[actuel][prochain] += Q;
         pheromone[prochain][actuel] += Q;
 
@@ -250,12 +254,17 @@ Resultat* explorer(Graphe graphe, int n, double** pheromone, int sommet_depart, 
         actuel = prochain;
     }
 
+    poids += distance_euc(
+        graphe.graphe[actuel],
+        graphe.graphe[sommet_depart]
+    );
+
     pheromone[actuel][sommet_depart] += Q;
     pheromone[sommet_depart][actuel] += Q;
 
     resultat->chemin[n] = sommet_depart;
 
-    resultat->poids = calculer_poids(graphe, resultat->chemin, n);
+    resultat->poids = poids;
 
     free(visite);
 
@@ -316,7 +325,7 @@ Resultat* ACO(Graphe graphe, int n, int nb_itérations, int nb_fourmis, double a
 }
 
 void test(int nb_test) {
-    for (int i = 3; i < nb_test; i++) {
+    for (int i = 10; i < nb_test; i++) {
         Graphe g = creer_graphe_aleatoire(i);
         time_t t0_aco;
         time(&t0_aco);
