@@ -133,7 +133,7 @@ bool coord_est_dans_tableau(Coord* tab, int n, Coord c) {
     return false;
 }
 
-Graphe* creer_graphe_aléatoire(int nb_sommet) {
+Graphe* creer_graphe_aleatoire(int nb_sommet) {
     Graphe* g = malloc(sizeof(Graphe));
     Coord* tableau_coord = malloc(nb_sommet*sizeof(Coord));
     for (int i = 0; i < nb_sommet; i++) {
