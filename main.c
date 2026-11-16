@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <limits.h>
 #include <math.h>
 #include <time.h>
 #include <float.h>
@@ -117,6 +118,171 @@ Resultat force_brute(Graphe g, int n) {
 }
 
 /////////////// PART 4
+
+Resultat* explorer(Graphe graphe, int n, double** pheromone, int sommet_depart, double Q, double alpha, double beta) {
+    
+    Resultat* resultat = malloc(sizeof(Resultat));
+
+    resultat->chemin = malloc((n + 1) * sizeof(int));
+
+    int* visite = calloc(n, sizeof(int));
+
+    int actuel = sommet_depart;
+    int nb_visites = 1;
+
+    double poids = 0.0;
+
+    resultat->chemin[0] = sommet_depart;
+    visite[sommet_depart] = 1;
+
+    while (nb_visites < n) {
+
+        double* probabilites = calloc(n, sizeof(double));
+        if (probabilites == NULL) {
+            free(visite);
+            free(resultat->chemin);
+            free(resultat);
+            return NULL;
+        }
+
+        double somme = 0.0;
+
+        for (int i = 0; i < n; i++) {
+
+            if (!visite[i]) {
+
+                double distance = distance_euc(
+                    graphe.graphe[actuel],
+                    graphe.graphe[i]
+                );
+
+                if (distance > 0.0 && pheromone[actuel][i] > 0.0) {
+
+                    double visibilite = 1.0 / distance;
+
+                    probabilites[i] =
+                        pow(pheromone[actuel][i], alpha)
+                        * pow(visibilite, beta);
+
+                    somme += probabilites[i];
+                }
+            }
+        }
+
+        double tirage = ((double)rand() / RAND_MAX) * somme;
+
+        double cumul = 0.0;
+        int prochain = -1;
+
+        for (int i = 0; i < n; i++) {
+
+            cumul += probabilites[i];
+
+            if (!visite[i] && probabilites[i] > 0.0
+                && tirage <= cumul) {
+
+                prochain = i;
+                break;
+            }
+        }
+
+        if (prochain == -1) {
+            for (int i = 0; i < n; i++) {
+                if (!visite[i] && probabilites[i] > 0.0) {
+                    prochain = i;
+                    break;
+                }
+            }
+        }
+
+        free(probabilites);
+
+        if (prochain == -1) {
+            free(visite);
+            free(resultat->chemin);
+            free(resultat);
+            return NULL;
+        }
+
+        double distance = distance_euc(
+            graphe.graphe[actuel],
+            graphe.graphe[prochain]
+        );
+
+        poids += distance;
+
+        pheromone[actuel][prochain] += Q;
+        pheromone[prochain][actuel] += Q;
+
+        resultat->chemin[nb_visites] = prochain;
+
+        visite[prochain] = 1;
+        nb_visites++;
+
+        actuel = prochain;
+    }
+
+    poids += distance_euc(
+        graphe.graphe[actuel],
+        graphe.graphe[sommet_depart]
+    );
+
+    pheromone[actuel][sommet_depart] += Q;
+    pheromone[sommet_depart][actuel] += Q;
+
+    resultat->chemin[n] = sommet_depart;
+
+    resultat->poids = poids;
+
+    free(visite);
+
+    return resultat;
+
+}
+
+void évaporation(int n, double** pheromone, float rho) {
+
+    for(int u = 0; u < n; u++)
+    {
+        for(int v = 0; v < n; v++)
+        {
+            pheromone[u][v] *= (1 - rho);
+        }
+    }
+
+}
+
+Resultat* ACO(Graphe graphe, int n, int nb_itérations, int nb_fourmis, double alpha, double beta ,double Q, double rho) {
+    
+    Resultat* resultat = malloc(sizeof(Resultat));
+    double** pheromone = malloc(n * sizeof(double*));
+
+    for (int i = 0; i < n; i++) {
+        double* tab = malloc(n * sizeof(double)); 
+        for (int j = 0; j < n; j++) {
+            tab[j] = Q;
+        }
+        pheromone[i] = tab;
+    }
+    Chemin best_path = malloc(sizeof(Chemin));
+    best_path = NULL;
+    int best_cost = INT_MAX;
+    for (int i = 0; i < nb_itérations; i++) {
+        for (int j = 0; j < nb_fourmis; j++) {
+            int ville_choisie = rand() % n;
+            Resultat* r = explorer(graphe, n, pheromone, ville_choisie, Q, alpha, beta);
+            if (r -> poids < best_cost) {
+                best_cost = r -> poids;
+                best_path = r -> chemin;
+            }
+        }
+        évaporation(n, pheromone, rho);
+    }
+
+    resultat -> poids = best_cost;
+    resultat -> chemin = best_path;
+    return resultat;
+}
 
 int main(void) {
     srand((unsigned int)time(NULL));
