@@ -343,10 +343,10 @@ void test(int nb_test, int nb_sommets) {
         printf("poids du cycle trouvé par aco: %lf\n", r_aco->poids);
         printf("poids du cycle trouvé par brute force: %lf\n", r_brute->poids);
         free(g.graphe);
-        free(r_aco);
-        free(r_brute);
         free(r_aco -> chemin);
         free(r_brute -> chemin);
+        free(r_aco);
+        free(r_brute);    
     }
     
 }
