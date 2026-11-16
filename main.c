@@ -325,18 +325,18 @@ Resultat* ACO(Graphe graphe, int n, int nb_itérations, int nb_fourmis, double a
 }
 
 void test(int nb_test) {
-    for (int i = 10; i < nb_test; i++) {
-        Graphe g = creer_graphe_aleatoire(i);
+    for (int i = 0; i < nb_test; i++) {
+        Graphe g = creer_graphe_aleatoire(10);
         time_t t0_aco;
         time(&t0_aco);
-        Resultat* r_aco = ACO(g, i, 100, 15, 1, 1, 100, 0.35);
+        Resultat* r_aco = ACO(g, 10, 100, 15, 1, 1, 100, 0.35);
         time_t t1_aco;
         time(&t1_aco);
         time_t t_aco = t1_aco - t0_aco;
         printf("temps pour executer ACO : %ld\n", t_aco);
         time_t t0;
         time(&t0);
-        Resultat* r_brute = force_brute(g, i);
+        Resultat* r_brute = force_brute(g, 10);
         time_t t1;
         time(&t1);
         time_t t_brute = t1 - t0;
