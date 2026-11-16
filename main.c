@@ -320,7 +320,6 @@ Resultat* ACO(Graphe graphe, int n, int nb_itérations, int nb_fourmis, double a
     free_double(pheromone, n);
     resultat -> poids = best_cost;
     resultat -> chemin = best_path;
-    free(best_path);
     return resultat;
 }
 
@@ -346,6 +345,8 @@ void test(int nb_test, int nb_sommets) {
         free(g.graphe);
         free(r_aco);
         free(r_brute);
+        free(r_aco -> chemin);
+        free(r_brute -> chemin);
     }
     
 }
