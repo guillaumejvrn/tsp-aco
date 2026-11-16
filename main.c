@@ -309,15 +309,15 @@ int main(void) {
     free(mon_res.chemin);
 
     Resultat res_fb = force_brute(g, n);
-printf("Force brute - Poids : %f\n", res_fb.poids);
-printf("Meilleur chemin : ");
-for (int i = 0; i < n; i++) {
-    printf("%d ", res_fb.chemin[i]);
-}
-printf("\n");
+    printf("Force brute - Poids : %f\n", res_fb.poids);
+    printf("Meilleur chemin : ");
+    for (int i = 0; i < n; i++) {
+        printf("%d ", res_fb.chemin[i]);
+    }
+    printf("\n");
 
-free(res_fb.chemin);
-    return 0;
+    free(res_fb.chemin);
+        return 0;
 }
 
 
