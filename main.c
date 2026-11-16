@@ -299,7 +299,7 @@ Resultat* ACO(Graphe graphe, int n, int nb_itérations, int nb_fourmis, double a
     for (int i = 0; i < n; i++) {
         double* tab = malloc(n * sizeof(double)); 
         for (int j = 0; j < n; j++) {
-            tab[j] = Q;
+            tab[j] = Q / distance_euc(graphe.graphe[i], graphe.graphe[j]);
         }
         pheromone[i] = tab;
     }
