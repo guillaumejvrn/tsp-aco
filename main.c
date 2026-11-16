@@ -1,11 +1,11 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <limits.h>
 #include <math.h>
 #include <time.h>
 #include <float.h>
-
-#define N 50
+#define N 100
 
 typedef struct {
     int x;
@@ -115,6 +115,40 @@ Resultat force_brute(Graphe g, int n) {
 
     free(actuel);
     return meilleur;
+}
+
+Coord creer_coord(int x, int y) {
+    Coord c;
+    c.x = x;
+    c.y = y;
+    return c;
+}
+
+bool coord_est_dans_tableau(Coord* tab, int n, Coord c) {
+    for (int i = 0; i < n; i++) {
+        if (tab[i].x == c.x && tab[i].y == c.y) {
+            return true;
+        }
+    }
+    return false;
+}
+
+Graphe* creer_graphe_aléatoire(int nb_sommet) {
+    Graphe* g = malloc(sizeof(Graphe));
+    Coord* tableau_coord = malloc(nb_sommet*sizeof(Coord));
+    for (int i = 0; i < nb_sommet; i++) {
+        int x = rand() % N; 
+        int y = rand() % N;
+        Coord c = creer_coord(x, y);
+        while (coord_est_dans_tableau(tableau_coord, nb_sommet, c)) {
+            int x = rand() % N;
+            int y = rand() % N;
+            Coord c = creer_coord(x, y);
+        }
+        tableau_coord[i] = c;
+    }
+    g->graphe = tableau_coord;
+    return g;
 }
 
 /////////////// PART 4
