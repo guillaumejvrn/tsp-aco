@@ -326,13 +326,13 @@ Resultat* ACO(Graphe graphe, int n, int nb_itérations, int nb_fourmis, double a
     return resultat;
 }
 
-void test(int nb_test) {
+void test(int nb_test, int nb_sommets) {
     for (int i = 0; i < nb_test; i++) {
-        Graphe g = creer_graphe_aleatoire(10);
+        Graphe g = creer_graphe_aleatoire(nb_sommets);
         time_t t0_aco;
         time(&t0_aco);
         printf("Aco :\n");
-        Resultat* r_aco = ACO(g, 10, 100, 15, 1, 1, 100, 0.35);
+        Resultat* r_aco = ACO(g, nb_sommets, 100, 15, 1, 1, 100, 0.35);
         time_t t1_aco;
         time(&t1_aco);
         time_t t_aco = t1_aco - t0_aco;
@@ -340,7 +340,7 @@ void test(int nb_test) {
         time_t t0;
         time(&t0);
         printf("Brute force :\n");
-        Resultat* r_brute = force_brute(g, 10);
+        Resultat* r_brute = force_brute(g, nb_sommets);
         time_t t1;
         time(&t1);
         time_t t_brute = t1 - t0;
@@ -357,7 +357,7 @@ void test(int nb_test) {
 int main(void) {
     srand((unsigned int)time(NULL));
 
-    test(10);
+    test(1);
 
     /*Coord points_test1[5] = {
         {0, 0},   // 0 : Bas-gauche
