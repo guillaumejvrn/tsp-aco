@@ -141,9 +141,9 @@ Graphe creer_graphe_aleatoire(int nb_sommet) {
         int y = rand() % N;
         Coord c = creer_coord(x, y);
         while (coord_est_dans_tableau(tableau_coord, i, c)) {
-            int x = rand() % N;
-            int y = rand() % N;
-            Coord c = creer_coord(x, y);
+            x = rand() % N;
+            y = rand() % N;
+            c = creer_coord(x, y);
         }
         tableau_coord[i] = c;
     }
