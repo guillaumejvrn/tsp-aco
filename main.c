@@ -194,9 +194,7 @@ Resultat* explorer(Graphe graphe, int n, double** pheromone, int sommet_depart, 
 
                     double visibilite = 1.0 / distance;
 
-                    probabilites[i] =
-                        pow(pheromone[actuel][i], alpha)
-                        * pow(visibilite, beta);
+                    probabilites[i] = pow(pheromone[actuel][i], alpha) * pow(visibilite, beta);
 
                     somme += probabilites[i];
                 }
