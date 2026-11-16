@@ -307,7 +307,7 @@ Resultat* ACO(Graphe graphe, int n, int nb_itérations, int nb_fourmis, double a
     }
     Chemin best_path = malloc(sizeof(Chemin));
     best_path = NULL;
-    int best_cost = INT_MAX;
+    double best_cost = INT_MAX;
     for (int i = 0; i < nb_itérations; i++) {
         for (int j = 0; j < nb_fourmis; j++) {
             int ville_choisie = rand() % n;
