@@ -25,9 +25,7 @@ double puissance_2(double n) {
 }
 
 double distance_euc(Coord c1, Coord c2) {
-    double res = sqrt(puissance_2(c1.x - c2.x) + puissance_2(c1.y - c2.y));
-    printf("distance = %lf\n", res);
-    return res;
+    return sqrt(puissance_2(c1.x - c2.x) + puissance_2(c1.y - c2.y));
 }
 
 /////////////// PART 4
@@ -339,7 +337,6 @@ void test(int nb_test, int nb_sommets) {
         printf("temps pour executer ACO : %ld\n", t_aco);
         time_t t0;
         time(&t0);
-        printf("Brute force :\n");
         Resultat* r_brute = force_brute(g, nb_sommets);
         time_t t1;
         time(&t1);
