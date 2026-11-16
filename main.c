@@ -104,14 +104,14 @@ void explorer_permutations(Graphe g, int n, Chemin actuel, int debut, Resultat* 
     }
 }
 
-Resultat force_brute(Graphe g, int n) {
-    Resultat meilleur;
-    meilleur.poids = DBL_MAX; 
-    meilleur.chemin = creer_chemin(n);
+Resultat* force_brute(Graphe g, int n) {
+    Resultat* meilleur = malloc(sizeof(Resultat));
+    meilleur -> poids = DBL_MAX; 
+    meilleur -> chemin = creer_chemin(n);
 
     Chemin actuel = creer_chemin(n);
 
-    explorer_permutations(g, n, actuel, 1, &meilleur);
+    explorer_permutations(g, n, actuel, 1, meilleur);
 
     free(actuel);
     return meilleur;
@@ -321,9 +321,22 @@ Resultat* ACO(Graphe graphe, int n, int nb_itérations, int nb_fourmis, double a
 void test(int nb_test) {
     for (int i = 3; i < nb_test; i++) {
         Graphe g = creer_graphe_aleatoire(i);
+        time_t t0_aco;
+        time(&t0_aco);
+        Resultat* r_aco = ACO(g, i, 100, 15, 1, 1, 100, 0.35);
+        time_t t1_aco;
+        time(&t1_aco);
+        time_t t_aco = t1_aco - t0_aco;
+        printf("temps pour executer ACO : %ld\n", t_aco);
         time_t t0;
         time(&t0);
-        Resultat* r = ACO(g, i, 100, 15, 1, 1, 100, 0.35);
+        Resultat* r_brute = force_brute(g, i);
+        time_t t1;
+        time(&t1);
+        time_t t_brute = t1 - t0;
+        printf("temps pour executer brute force : %ld\n", t_brute);
+        printf("poids du cycle trouvé par aco: %lf\n", r_aco->poids);
+        printf("poids du cycle trouvé par brute force: %lf\n", r_brute->poids);
     }
     
 }
@@ -352,17 +365,18 @@ int main(void) {
 
     free(mon_res.chemin);
 
-    Resultat res_fb = force_brute(g, n);
-    printf("Force brute - Poids : %f\n", res_fb.poids);
+    Resultat* res_fb = force_brute(g, n);
+    printf("Force brute - Poids : %f\n", res_fb->poids);
     printf("Meilleur chemin : ");
     for (int i = 0; i < n; i++) {
-        printf("%d ", res_fb.chemin[i]);
+        printf("%d ", res_fb->chemin[i]);
     }
     printf("\n");
 
-    free(res_fb.chemin);
+    free(res_fb->chemin);
         return 0;
 }
 
 
-// gcc -Wall -Wextra -Werror -Wvla -fsanitize=address,undefined -o main main.c -lm && ./main
+// gcc -Wall -Wextra -Werror -std=c17 -g main.c -o main
+// ./main
