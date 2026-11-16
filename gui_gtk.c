@@ -279,7 +279,7 @@ static void initialiser_simulation(AppState* app) {
 }
 
 // ============================================================================
-// CHARGEMENT & GÉNÉRATION DE GRAPHE
+// CHARGEMENT & GÉNÉRATION DE GRAPHE (GÈRE "nom x y" ET "x y nom")
 // ============================================================================
 static bool charger_graphe_fichier(AppState* app, const char* filename) {
     FILE* f = fopen(filename, "r");
@@ -308,22 +308,48 @@ static bool charger_graphe_fichier(AppState* app, const char* filename) {
             continue;
         }
 
-        double x, y;
-        char nom[64] = "";
-        int lus = sscanf(p, "%lf %lf %63s", &x, &y, nom);
+        char col1[64] = "", col2[64] = "", col3[64] = "";
+        int lus = sscanf(p, "%63s %63s %63s", col1, col2, col3);
         if (lus >= 2) {
+            char *end1, *end2, *end3;
+            double v1 = strtod(col1, &end1);
+            double v2 = strtod(col2, &end2);
+            double v3 = (lus == 3) ? strtod(col3, &end3) : 0.0;
+
+            bool ok1 = (*end1 == '\0');
+            bool ok2 = (*end2 == '\0');
+            bool ok3 = (lus == 3 && *end3 == '\0');
+
+            double x = 0.0, y = 0.0;
+            char nom[64] = "";
+
+            if (lus == 3 && ok2 && ok3 && (!ok1 || strchr(col1, '.') == NULL)) {
+                // Format type 131_graphe.txt : nom x y
+                strncpy(nom, col1, 63);
+                nom[63] = '\0';
+                x = v2;
+                y = v3;
+            } else if (ok1 && ok2) {
+                // Format : x y [nom]
+                x = v1;
+                y = v2;
+                if (lus == 3) {
+                    strncpy(nom, col3, 63);
+                    nom[63] = '\0';
+                } else {
+                    snprintf(nom, 64, "V%d", count + 1);
+                }
+            } else {
+                continue;
+            }
+
             if (count >= cap) {
                 cap *= 2;
                 tab = realloc(tab, cap * sizeof(Sommet));
             }
             tab[count].x = x;
             tab[count].y = y;
-            if (lus == 3) {
-                strncpy(tab[count].nom, nom, 63);
-                tab[count].nom[63] = '\0';
-            } else {
-                snprintf(tab[count].nom, 64, "V%d", count + 1);
-            }
+            strcpy(tab[count].nom, nom);
             count++;
         }
     }
@@ -578,8 +604,8 @@ static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
     #define TO_SX(x) (offsetX + ((x) - minX) * scale)
     #define TO_SY(y) (h - (offsetY + ((y) - minY) * scale) + (pad_top - pad_bottom) * 0.5)
 
-    // 1. Pistes de phéromones
-    if (app->afficher_phero && app->pheromone) {
+    // 1. Pistes de phéromones (uniquement après au moins 1 itération)
+    if (app->iteration > 0 && app->afficher_phero && app->pheromone) {
         double maxP = 0.0;
         for (int i = 0; i < n; i++)
             for (int j = i + 1; j < n; j++)
@@ -590,9 +616,9 @@ static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
             for (int i = 0; i < n; i++) {
                 for (int j = i + 1; j < n; j++) {
                     double ratio = app->pheromone[i][j] / maxP;
-                    if (ratio < 0.07) continue;
+                    if (ratio < 0.08) continue;
                     cairo_set_source_rgba(cr, 0.20, 0.68, 1.0, ratio * 0.78);
-                    cairo_set_line_width(cr, 1.0 + ratio * 6.0);
+                    cairo_set_line_width(cr, 1.0 + ratio * 5.5);
                     cairo_move_to(cr, TO_SX(app->graphe.sommets[i].x), TO_SY(app->graphe.sommets[i].y));
                     cairo_line_to(cr, TO_SX(app->graphe.sommets[j].x), TO_SY(app->graphe.sommets[j].y));
                     cairo_stroke(cr);
@@ -622,7 +648,7 @@ static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
         cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
 
         cairo_set_source_rgba(cr, 1.0, 0.27, 0.23, 0.22);
-        cairo_set_line_width(cr, 7.0);
+        cairo_set_line_width(cr, 6.5);
         for (int i = 0; i < n; i++) {
             int u = app->meilleur_global.chemin[i];
             int v = app->meilleur_global.chemin[(i + 1) % n];
@@ -632,7 +658,7 @@ static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
         cairo_stroke(cr);
 
         cairo_set_source_rgb(cr, 1.0, 0.27, 0.23);
-        cairo_set_line_width(cr, 2.5);
+        cairo_set_line_width(cr, 2.3);
         for (int i = 0; i < n; i++) {
             int u = app->meilleur_global.chemin[i];
             int v = app->meilleur_global.chemin[(i + 1) % n];
@@ -642,30 +668,32 @@ static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
         cairo_stroke(cr);
     }
 
-    // 4. Sommets stylisés
+    // 4. Sommets stylisés (taille adaptée au nombre de villes)
+    double r_ext = (n > 50) ? 3.5 : 5.5;
+    double r_int = (n > 50) ? 2.0 : 3.0;
     cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
-    cairo_set_font_size(cr, 11.0);
+    cairo_set_font_size(cr, (n > 50) ? 8.5 : 11.0);
 
     for (int i = 0; i < n; i++) {
         double sx = TO_SX(app->graphe.sommets[i].x);
         double sy = TO_SY(app->graphe.sommets[i].y);
 
         cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.45);
-        cairo_arc(cr, sx, sy + 1.5, 6.5, 0, 2 * M_PI);
+        cairo_arc(cr, sx, sy + 1.2, r_ext + 1.0, 0, 2 * M_PI);
         cairo_fill(cr);
 
         cairo_set_source_rgb(cr, 0.96, 0.96, 0.97);
-        cairo_arc(cr, sx, sy, 5.5, 0, 2 * M_PI);
+        cairo_arc(cr, sx, sy, r_ext, 0, 2 * M_PI);
         cairo_fill(cr);
 
         if (i == 0) cairo_set_source_rgb(cr, 1.0, 0.84, 0.04);
         else cairo_set_source_rgb(cr, 0.04, 0.52, 1.0);
-        cairo_arc(cr, sx, sy, 3.0, 0, 2 * M_PI);
+        cairo_arc(cr, sx, sy, r_int, 0, 2 * M_PI);
         cairo_fill(cr);
 
         if (app->afficher_noms) {
-            cairo_set_source_rgba(cr, 0.92, 0.92, 0.95, 0.92);
-            cairo_move_to(cr, sx + 8, sy - 6);
+            cairo_set_source_rgba(cr, 0.92, 0.92, 0.95, 0.88);
+            cairo_move_to(cr, sx + r_ext + 3.0, sy - 3.0);
             cairo_show_text(cr, app->graphe.sommets[i].nom);
         }
     }
@@ -850,7 +878,7 @@ static void mettre_a_jour_diagnostic_params(AppState* app) {
 }
 
 static void rafraichir_interface(AppState* app) {
-    char buf_iter[128], buf_aco[128], buf_opt[160];
+    char buf_iter[256], buf_aco[256], buf_opt[256];
 
     snprintf(buf_iter, sizeof(buf_iter),
              "<span size='small' foreground='#98989D'>ITÉRATION</span>\n"
@@ -953,7 +981,7 @@ static void on_charger_clicked(GtkButton* btn, gpointer data) {
     (void)btn;
     AppState* app = (AppState*)data;
     GtkWidget* dialog = gtk_file_chooser_dialog_new(
-        "Ouvrir un fichier graphe (Ligne 1 = Optimal, puis x y nom)",
+        "Ouvrir un fichier graphe (Ligne 1 = Optimal, puis x y nom ou nom x y)",
         NULL, GTK_FILE_CHOOSER_ACTION_OPEN,
         "Annuler", GTK_RESPONSE_CANCEL,
         "Ouvrir", GTK_RESPONSE_ACCEPT, NULL);
@@ -967,7 +995,7 @@ static void on_charger_clicked(GtkButton* btn, gpointer data) {
         }
         if (!charger_graphe_fichier(app, filename)) {
             GtkWidget* err = gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR,
-                GTK_BUTTONS_OK, "Format invalide.\nAttendu : Ligne 1 = poids minimal, puis 'x y nom'.");
+                GTK_BUTTONS_OK, "Format invalide.\nAttendu : Ligne 1 = poids minimal, puis 'x y nom' ou 'nom x y'.");
             gtk_dialog_run(GTK_DIALOG(err));
             gtk_widget_destroy(err);
         }
