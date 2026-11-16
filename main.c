@@ -264,7 +264,7 @@ Resultat* explorer(Graphe graphe, int n, double** pheromone, int sommet_depart, 
 
     resultat->chemin[n] = sommet_depart;
 
-    resultat->poids = poids;
+    resultat->poids = calculer_poids(graphe, resultat->chemin,n);
 
     free(visite);
 
