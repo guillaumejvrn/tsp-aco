@@ -560,8 +560,8 @@ static bool parse_txt_file(const char* filename, int* out_n, double** out_x, dou
     }
     fclose(f);
 
-    if (count < 3 || count > 200) {
-        snprintf(err_msg, err_sz, "%d sommets trouvés (3 à 200 requis)", count);
+    if (count < 3 || count > 400) {
+        snprintf(err_msg, err_sz, "%d sommets trouvés (3 à 400 requis)", count);
         free(pts);
         return false;
     }
@@ -1647,7 +1647,7 @@ int main(int argc, char** argv) {
 
     GtkWidget* b_graphe;
     GtkWidget* c_graphe = make_card("Graphe", &b_graphe);
-    app.spin_n = gtk_spin_button_new_with_range(3, 400, 1);
+    app.spin_n = gtk_spin_button_new_with_range(3, 200, 1);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(app.spin_n), 12);
     app.spin_seed = gtk_spin_button_new_with_range(0, 999999, 1);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(app.spin_seed), 42);
