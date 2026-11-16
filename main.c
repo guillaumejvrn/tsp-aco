@@ -354,38 +354,6 @@ int main(void) {
     srand((unsigned int)time(NULL));
 
     test(1, 3);
-
-    /*Coord points_test1[5] = {
-        {0, 0},   // 0 : Bas-gauche
-        {0, 10},  // 1 : Haut-gauche
-        {10, 10}, // 2 : Haut-droit
-        {10, 0},  // 3 : Bas-droit
-        {5, 5}    // 4 : Centre
-    };
-
-    int n = 5;
-    Graphe g = { .graphe = points_test1 };
-
-    Resultat mon_res = chemin_aleatoire(g, n);
-    printf("Poids : %f\n", mon_res.poids);
-    printf("Chemin : ");
-    for (int i = 0; i < n; i++) {
-        printf("%d ", mon_res.chemin[i]);
-    }
-    printf("\n");
-
-    free(mon_res.chemin);
-
-    Resultat* res_fb = force_brute(g, n);
-    printf("Force brute - Poids : %f\n", res_fb->poids);
-    printf("Meilleur chemin : ");
-    for (int i = 0; i < n; i++) {
-        printf("%d ", res_fb->chemin[i]);
-    }
-    printf("\n");
-
-    free(res_fb->chemin);
-        return 0;*/
 }
 
 
