@@ -164,8 +164,6 @@ Resultat* explorer(Graphe graphe, int n, double** pheromone, int sommet_depart, 
     int actuel = sommet_depart;
     int nb_visites = 1;
 
-    double poids = 0.0;
-
     resultat->chemin[0] = sommet_depart;
     visite[sommet_depart] = 1;
 
@@ -241,8 +239,6 @@ Resultat* explorer(Graphe graphe, int n, double** pheromone, int sommet_depart, 
             graphe.graphe[prochain]
         );
 
-        poids += distance;
-
         pheromone[actuel][prochain] += Q;
         pheromone[prochain][actuel] += Q;
 
@@ -254,17 +250,12 @@ Resultat* explorer(Graphe graphe, int n, double** pheromone, int sommet_depart, 
         actuel = prochain;
     }
 
-    poids += distance_euc(
-        graphe.graphe[actuel],
-        graphe.graphe[sommet_depart]
-    );
-
     pheromone[actuel][sommet_depart] += Q;
     pheromone[sommet_depart][actuel] += Q;
 
     resultat->chemin[n] = sommet_depart;
 
-    resultat->poids = poids;
+    resultat->poids = calculer_poids(graphe, resultat->chemin, n);
 
     free(visite);
 
@@ -282,6 +273,13 @@ void évaporation(int n, double** pheromone, float rho) {
         }
     }
 
+}
+
+void free_double(double** tab, int n) {
+    for (int i = 0; i < n; i ++) {
+        free(tab[i]);
+    }
+    free(tab);
 }
 
 Resultat* ACO(Graphe graphe, int n, int nb_itérations, int nb_fourmis, double alpha, double beta ,double Q, double rho) {
@@ -310,9 +308,10 @@ Resultat* ACO(Graphe graphe, int n, int nb_itérations, int nb_fourmis, double a
         }
         évaporation(n, pheromone, rho);
     }
-
+    free_double(pheromone, n);
     resultat -> poids = best_cost;
     resultat -> chemin = best_path;
+    free(best_path);
     return resultat;
 }
 
@@ -335,6 +334,9 @@ void test(int nb_test) {
         printf("temps pour executer brute force : %ld\n", t_brute);
         printf("poids du cycle trouvé par aco: %lf\n", r_aco->poids);
         printf("poids du cycle trouvé par brute force: %lf\n", r_brute->poids);
+        free(g.graphe);
+        free(r_aco);
+        free(r_brute);
     }
     
 }
@@ -342,7 +344,9 @@ void test(int nb_test) {
 int main(void) {
     srand((unsigned int)time(NULL));
 
-    Coord points_test1[5] = {
+    test(13);
+
+    /*Coord points_test1[5] = {
         {0, 0},   // 0 : Bas-gauche
         {0, 10},  // 1 : Haut-gauche
         {10, 10}, // 2 : Haut-droit
@@ -372,9 +376,9 @@ int main(void) {
     printf("\n");
 
     free(res_fb->chemin);
-        return 0;
+        return 0;*/
 }
 
 
-// gcc -Wall -Wextra -Werror -std=c17 -g main.c -o main
+// gcc -Wall -Wextra -Werror -std=c17 -g main.c -o main -lm
 // ./main
