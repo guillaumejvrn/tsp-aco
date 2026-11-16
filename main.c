@@ -329,7 +329,6 @@ void test(int nb_test, int nb_sommets) {
         Graphe g = creer_graphe_aleatoire(nb_sommets);
         time_t t0_aco;
         time(&t0_aco);
-        printf("Aco :\n");
         Resultat* r_aco = ACO(g, nb_sommets, 100, 15, 1, 1, 100, 0.35);
         time_t t1_aco;
         time(&t1_aco);
