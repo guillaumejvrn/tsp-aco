@@ -30,7 +30,6 @@ typedef struct {
 } Resultat;
 
 typedef struct {
-    // Données du graphe
     Graphe graphe;
     double** pheromone;
 
@@ -41,7 +40,7 @@ typedef struct {
     double Q;
     int nb_fourmis;
 
-    // État de la simulation
+    // État simulation
     int iteration;
     Resultat meilleur_global;
     Resultat meilleur_iter;
@@ -50,17 +49,19 @@ typedef struct {
     bool afficher_phero;
     bool afficher_noms;
 
-    // Historique pour la courbe de convergence
+    // Historique courbe
     double* hist_meilleur;
     double* hist_moyenne;
     int hist_capacite;
 
-    // Timer & Widgets GTK
+    // Widgets & Timer
     guint timer_id;
     int vitesse_ms;
     GtkWidget* drawing_graph;
     GtkWidget* drawing_chart;
-    GtkWidget* lbl_stats;
+    GtkWidget* lbl_kpi_aco;
+    GtkWidget* lbl_kpi_opt;
+    GtkWidget* lbl_kpi_iter;
     GtkWidget* lbl_diag;
     GtkWidget* btn_play;
     GtkWidget* spin_alpha;
@@ -70,6 +71,140 @@ typedef struct {
     GtkWidget* spin_vitesse;
     GtkWidget* spin_alea;
 } AppState;
+
+// ============================================================================
+// FEUILLE DE STYLE CSS 100 % SANS SVG (ESTHÉTIQUE macOS / iOS DARK MODE)
+// ============================================================================
+static const char* MACOS_DARK_CSS =
+    "* {"
+    "  -gtk-icon-source: none;"
+    "}"
+    "window {"
+    "  background-color: #141416;"
+    "  color: #F5F5F7;"
+    "  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;"
+    "  font-size: 13px;"
+    "}"
+    ".card {"
+    "  background-color: #1E1E22;"
+    "  border: 1px solid #2E2E34;"
+    "  border-radius: 14px;"
+    "  padding: 12px;"
+    "}"
+    ".section-title {"
+    "  color: #98989D;"
+    "  font-size: 11px;"
+    "  font-weight: 700;"
+    "  letter-spacing: 0.6px;"
+    "}"
+    ".kpi-box {"
+    "  background-color: #26262B;"
+    "  border: 1px solid #34343B;"
+    "  border-radius: 10px;"
+    "  padding: 8px 10px;"
+    "}"
+    "button {"
+    "  background-image: none;"
+    "  background-color: #2C2C32;"
+    "  color: #F5F5F7;"
+    "  border: 1px solid #3A3A42;"
+    "  border-radius: 9px;"
+    "  padding: 7px 12px;"
+    "  font-weight: 600;"
+    "  box-shadow: none;"
+    "}"
+    "button:hover {"
+    "  background-color: #36363E;"
+    "  border-color: #484852;"
+    "}"
+    "button:active {"
+    "  background-color: #242429;"
+    "}"
+    "button.primary {"
+    "  background-color: #0A84FF;"
+    "  border-color: #0A84FF;"
+    "  color: #FFFFFF;"
+    "}"
+    "button.primary:hover {"
+    "  background-color: #2494FF;"
+    "  border-color: #2494FF;"
+    "}"
+    "button.primary:active {"
+    "  background-color: #0070E0;"
+    "}"
+    "button.accent-green {"
+    "  background-color: rgba(48, 209, 88, 0.16);"
+    "  border-color: rgba(48, 209, 88, 0.45);"
+    "  color: #30D158;"
+    "}"
+    "button.accent-green:hover {"
+    "  background-color: rgba(48, 209, 88, 0.25);"
+    "}"
+    "button.pill-toggle {"
+    "  background-color: #26262B;"
+    "  border: 1px solid #383840;"
+    "  color: #98989D;"
+    "  border-radius: 16px;"
+    "  padding: 5px 12px;"
+    "  font-size: 12px;"
+    "}"
+    "button.pill-toggle:checked {"
+    "  background-color: rgba(10, 132, 255, 0.22);"
+    "  border-color: #0A84FF;"
+    "  color: #64D2FF;"
+    "}"
+    "spinbutton {"
+    "  background-color: #28282E;"
+    "  color: #F5F5F7;"
+    "  border: 1px solid #383840;"
+    "  border-radius: 8px;"
+    "  padding: 2px 4px;"
+    "}"
+    "spinbutton entry {"
+    "  background: transparent;"
+    "  color: #F5F5F7;"
+    "  border: none;"
+    "}"
+    "spinbutton button {"
+    "  background-image: none;"
+    "  background-color: #32323A;"
+    "  border: none;"
+    "  border-radius: 6px;"
+    "  padding: 2px 6px;"
+    "  margin: 2px;"
+    "}"
+    ".diag-pill {"
+    "  background-color: rgba(10, 132, 255, 0.12);"
+    "  border: 1px solid rgba(10, 132, 255, 0.30);"
+    "  border-radius: 9px;"
+    "  padding: 8px 10px;"
+    "  color: #64D2FF;"
+    "  font-size: 12px;"
+    "}";
+
+static void appliquer_style_macos(void) {
+    GtkCssProvider* provider = gtk_css_provider_new();
+    gtk_css_provider_load_from_data(provider, MACOS_DARK_CSS, -1, NULL);
+    gtk_style_context_add_provider_for_screen(
+        gdk_screen_get_default(),
+        GTK_STYLE_PROVIDER(provider),
+        GTK_STYLE_PROVIDER_PRIORITY_USER
+    );
+    g_object_unref(provider);
+}
+
+// ============================================================================
+// UTILITAIRES CAIRO (RECTANGLES ARRONDIS)
+// ============================================================================
+static void cairo_rounded_rect(cairo_t* cr, double x, double y, double w, double h, double r) {
+    double deg = M_PI / 180.0;
+    cairo_new_sub_path(cr);
+    cairo_arc(cr, x + w - r, y + r, r, -90 * deg, 0 * deg);
+    cairo_arc(cr, x + w - r, y + h - r, r, 0 * deg, 90 * deg);
+    cairo_arc(cr, x + r, y + h - r, r, 90 * deg, 180 * deg);
+    cairo_arc(cr, x + r, y + r, r, 180 * deg, 270 * deg);
+    cairo_close_path(cr);
+}
 
 // ============================================================================
 // UTILITAIRES MATHÉMATIQUES & MÉMOIRE
@@ -159,7 +294,6 @@ static bool charger_graphe_fichier(AppState* app, const char* filename) {
     Sommet* tab = malloc(cap * sizeof(Sommet));
 
     while (fgets(ligne, sizeof(ligne), f)) {
-        // Ignorer lignes vides ou commentaires
         char* p = ligne;
         while (*p == ' ' || *p == '\t') p++;
         if (*p == '\0' || *p == '\n' || *p == '\r' || *p == '#') continue;
@@ -324,7 +458,7 @@ static void executer_une_iteration_aco(AppState* app) {
         }
     }
 
-    // 2. Dépôt des phéromones proportionnel à Q / poids
+    // 2. Dépôt proportionnel à Q / poids
     for (int k = 0; k < nb_f; k++) {
         double depot = app->Q / poids_fourmis[k];
         for (int i = 0; i < n; i++) {
@@ -338,10 +472,8 @@ static void executer_une_iteration_aco(AppState* app) {
     free(chemins_fourmis);
     free(poids_fourmis);
 
-    double t1 = temps_actuel_ms();
-    app->meilleur_global.temps_ms = t1 - t0;
+    app->meilleur_global.temps_ms = temps_actuel_ms() - t0;
 
-    // Enregistrement historique
     if (app->iteration >= app->hist_capacite) {
         app->hist_capacite *= 2;
         app->hist_meilleur = realloc(app->hist_meilleur, app->hist_capacite * sizeof(double));
@@ -393,21 +525,38 @@ static void executer_force_brute(AppState* app) {
 }
 
 // ============================================================================
-// RENDU GRAPHIQUE CAIRO : CARTE DU GRAPHE & PHÉROMONES
+// RENDU GRAPHIQUE CAIRO : CARTE STYLE APPLE MAPS / KEYNOTE
 // ============================================================================
 static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
     AppState* app = (AppState*)data;
-    int width = gtk_widget_get_allocated_width(widget);
-    int height = gtk_widget_get_allocated_height(widget);
+    double w = gtk_widget_get_allocated_width(widget);
+    double h = gtk_widget_get_allocated_height(widget);
 
-    // Fond sombre
-    cairo_set_source_rgb(cr, 0.09, 0.10, 0.12);
-    cairo_paint(cr);
+    cairo_rounded_rect(cr, 0.5, 0.5, w - 1.0, h - 1.0, 14.0);
+    cairo_set_source_rgb(cr, 0.11, 0.11, 0.13);
+    cairo_fill_preserve(cr);
+    cairo_set_source_rgb(cr, 0.19, 0.19, 0.22);
+    cairo_set_line_width(cr, 1.0);
+    cairo_stroke_preserve(cr);
+    cairo_clip(cr);
+
+    // Grille subtile
+    cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.03);
+    cairo_set_line_width(cr, 1.0);
+    double step_grid = 36.0;
+    for (double gx = step_grid; gx < w; gx += step_grid) {
+        cairo_move_to(cr, gx, 0);
+        cairo_line_to(cr, gx, h);
+    }
+    for (double gy = step_grid; gy < h; gy += step_grid) {
+        cairo_move_to(cr, 0, gy);
+        cairo_line_to(cr, w, gy);
+    }
+    cairo_stroke(cr);
 
     int n = app->graphe.n;
     if (n < 3) return FALSE;
 
-    // Boîte englobante
     double minX = 1e18, maxX = -1e18, minY = 1e18, maxY = -1e18;
     for (int i = 0; i < n; i++) {
         if (app->graphe.sommets[i].x < minX) minX = app->graphe.sommets[i].x;
@@ -416,15 +565,18 @@ static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
         if (app->graphe.sommets[i].y > maxY) maxY = app->graphe.sommets[i].y;
     }
 
-    double margin = 45.0;
+    double pad_top = 56.0, pad_side = 48.0, pad_bottom = 36.0;
     double spanX = (maxX - minX > 1e-6) ? (maxX - minX) : 1.0;
     double spanY = (maxY - minY > 1e-6) ? (maxY - minY) : 1.0;
-    double scaleX = (width - 2 * margin) / spanX;
-    double scaleY = (height - 2 * margin) / spanY;
+    double scaleX = (w - 2 * pad_side) / spanX;
+    double scaleY = (h - pad_top - pad_bottom) / spanY;
     double scale = (scaleX < scaleY) ? scaleX : scaleY;
 
-    #define TO_SX(x) (margin + ((x) - minX) * scale)
-    #define TO_SY(y) (height - (margin + ((y) - minY) * scale))
+    double offsetX = (w - spanX * scale) / 2.0;
+    double offsetY = pad_top + ((h - pad_top - pad_bottom) - spanY * scale) / 2.0;
+
+    #define TO_SX(x) (offsetX + ((x) - minX) * scale)
+    #define TO_SY(y) (h - (offsetY + ((y) - minY) * scale) + (pad_top - pad_bottom) * 0.5)
 
     // 1. Pistes de phéromones
     if (app->afficher_phero && app->pheromone) {
@@ -434,12 +586,13 @@ static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
                 if (app->pheromone[i][j] > maxP) maxP = app->pheromone[i][j];
 
         if (maxP > 0.0) {
+            cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
             for (int i = 0; i < n; i++) {
                 for (int j = i + 1; j < n; j++) {
                     double ratio = app->pheromone[i][j] / maxP;
-                    if (ratio < 0.08) continue;
-                    cairo_set_source_rgba(cr, 0.0, 0.75, 1.0, ratio * 0.85);
-                    cairo_set_line_width(cr, 1.0 + ratio * 5.5);
+                    if (ratio < 0.07) continue;
+                    cairo_set_source_rgba(cr, 0.20, 0.68, 1.0, ratio * 0.78);
+                    cairo_set_line_width(cr, 1.0 + ratio * 6.0);
                     cairo_move_to(cr, TO_SX(app->graphe.sommets[i].x), TO_SY(app->graphe.sommets[i].y));
                     cairo_line_to(cr, TO_SX(app->graphe.sommets[j].x), TO_SY(app->graphe.sommets[j].y));
                     cairo_stroke(cr);
@@ -448,10 +601,12 @@ static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
         }
     }
 
-    // 2. Cycle Force Brute (vert)
+    // 2. Cycle Force Brute (vert menthe)
     if (app->afficher_fb && app->meilleur_fb.chemin) {
-        cairo_set_source_rgba(cr, 0.30, 0.90, 0.50, 0.75);
-        cairo_set_line_width(cr, 4.0);
+        cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+        cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+        cairo_set_source_rgba(cr, 0.19, 0.82, 0.35, 0.80);
+        cairo_set_line_width(cr, 4.5);
         for (int i = 0; i < n; i++) {
             int u = app->meilleur_fb.chemin[i];
             int v = app->meilleur_fb.chemin[(i + 1) % n];
@@ -461,9 +616,22 @@ static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
         cairo_stroke(cr);
     }
 
-    // 3. Meilleur cycle global ACO (rouge corail)
+    // 3. Meilleur cycle global ACO (rouge corail avec halo)
     if (app->iteration > 0 && app->meilleur_global.chemin) {
-        cairo_set_source_rgb(cr, 1.0, 0.33, 0.37);
+        cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+        cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+
+        cairo_set_source_rgba(cr, 1.0, 0.27, 0.23, 0.22);
+        cairo_set_line_width(cr, 7.0);
+        for (int i = 0; i < n; i++) {
+            int u = app->meilleur_global.chemin[i];
+            int v = app->meilleur_global.chemin[(i + 1) % n];
+            cairo_move_to(cr, TO_SX(app->graphe.sommets[u].x), TO_SY(app->graphe.sommets[u].y));
+            cairo_line_to(cr, TO_SX(app->graphe.sommets[v].x), TO_SY(app->graphe.sommets[v].y));
+        }
+        cairo_stroke(cr);
+
+        cairo_set_source_rgb(cr, 1.0, 0.27, 0.23);
         cairo_set_line_width(cr, 2.5);
         for (int i = 0; i < n; i++) {
             int u = app->meilleur_global.chemin[i];
@@ -474,7 +642,7 @@ static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
         cairo_stroke(cr);
     }
 
-    // 4. Sommets et noms
+    // 4. Sommets stylisés
     cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
     cairo_set_font_size(cr, 11.0);
 
@@ -482,36 +650,57 @@ static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
         double sx = TO_SX(app->graphe.sommets[i].x);
         double sy = TO_SY(app->graphe.sommets[i].y);
 
-        cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.18);
-        cairo_arc(cr, sx, sy, 8.5, 0, 2 * M_PI);
+        cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.45);
+        cairo_arc(cr, sx, sy + 1.5, 6.5, 0, 2 * M_PI);
         cairo_fill(cr);
 
-        if (i == 0) cairo_set_source_rgb(cr, 1.0, 0.84, 0.0);
-        else cairo_set_source_rgb(cr, 0.94, 0.96, 0.98);
-        cairo_arc(cr, sx, sy, 4.5, 0, 2 * M_PI);
+        cairo_set_source_rgb(cr, 0.96, 0.96, 0.97);
+        cairo_arc(cr, sx, sy, 5.5, 0, 2 * M_PI);
+        cairo_fill(cr);
+
+        if (i == 0) cairo_set_source_rgb(cr, 1.0, 0.84, 0.04);
+        else cairo_set_source_rgb(cr, 0.04, 0.52, 1.0);
+        cairo_arc(cr, sx, sy, 3.0, 0, 2 * M_PI);
         cairo_fill(cr);
 
         if (app->afficher_noms) {
-            cairo_set_source_rgb(cr, 0.86, 0.88, 0.92);
-            cairo_move_to(cr, sx + 7, sy - 5);
+            cairo_set_source_rgba(cr, 0.92, 0.92, 0.95, 0.92);
+            cairo_move_to(cr, sx + 8, sy - 6);
             cairo_show_text(cr, app->graphe.sommets[i].nom);
         }
     }
 
-    // Légende
-    cairo_set_font_size(cr, 11.0);
-    cairo_set_source_rgb(cr, 1.0, 0.33, 0.37);
-    cairo_move_to(cr, 15, 22);
-    cairo_show_text(cr, "— Meilleur cycle ACO");
+    // 5. Pilule de légende flottante
+    double hud_w = (app->afficher_fb && app->meilleur_fb.chemin) ? 455.0 : 315.0;
+    cairo_rounded_rect(cr, 14.0, 12.0, hud_w, 28.0, 14.0);
+    cairo_set_source_rgba(cr, 0.16, 0.16, 0.19, 0.88);
+    cairo_fill_preserve(cr);
+    cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.10);
+    cairo_set_line_width(cr, 1.0);
+    cairo_stroke(cr);
 
-    cairo_set_source_rgb(cr, 0.0, 0.75, 1.0);
-    cairo_move_to(cr, 165, 22);
-    cairo_show_text(cr, "— Intensité Phéromones");
+    cairo_set_font_size(cr, 11.0);
+    cairo_set_source_rgb(cr, 1.0, 0.27, 0.23);
+    cairo_arc(cr, 28.0, 26.0, 4.0, 0, 2 * M_PI);
+    cairo_fill(cr);
+    cairo_set_source_rgb(cr, 0.92, 0.92, 0.95);
+    cairo_move_to(cr, 37.0, 30.0);
+    cairo_show_text(cr, "Meilleur ACO");
+
+    cairo_set_source_rgb(cr, 0.20, 0.68, 1.0);
+    cairo_arc(cr, 145.0, 26.0, 4.0, 0, 2 * M_PI);
+    cairo_fill(cr);
+    cairo_set_source_rgb(cr, 0.92, 0.92, 0.95);
+    cairo_move_to(cr, 154.0, 30.0);
+    cairo_show_text(cr, "Phéromones");
 
     if (app->afficher_fb && app->meilleur_fb.chemin) {
-        cairo_set_source_rgb(cr, 0.30, 0.90, 0.50);
-        cairo_move_to(cr, 335, 22);
-        cairo_show_text(cr, "— Optimal Force Brute");
+        cairo_set_source_rgb(cr, 0.19, 0.82, 0.35);
+        cairo_arc(cr, 265.0, 26.0, 4.0, 0, 2 * M_PI);
+        cairo_fill(cr);
+        cairo_set_source_rgb(cr, 0.92, 0.92, 0.95);
+        cairo_move_to(cr, 274.0, 30.0);
+        cairo_show_text(cr, "Optimal Force Brute");
     }
 
     #undef TO_SX
@@ -520,26 +709,33 @@ static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
 }
 
 // ============================================================================
-// RENDU GRAPHIQUE CAIRO : COURBE DE CONVERGENCE (INFLUENCE ALPHA / BETA)
+// RENDU GRAPHIQUE CAIRO : COURBE DE CONVERGENCE
 // ============================================================================
 static gboolean on_draw_chart(GtkWidget* widget, cairo_t* cr, gpointer data) {
     AppState* app = (AppState*)data;
-    int width = gtk_widget_get_allocated_width(widget);
-    int height = gtk_widget_get_allocated_height(widget);
+    double w = gtk_widget_get_allocated_width(widget);
+    double h = gtk_widget_get_allocated_height(widget);
 
-    cairo_set_source_rgb(cr, 0.12, 0.13, 0.16);
-    cairo_paint(cr);
+    cairo_rounded_rect(cr, 0.5, 0.5, w - 1.0, h - 1.0, 14.0);
+    cairo_set_source_rgb(cr, 0.11, 0.11, 0.13);
+    cairo_fill_preserve(cr);
+    cairo_set_source_rgb(cr, 0.19, 0.19, 0.22);
+    cairo_set_line_width(cr, 1.0);
+    cairo_stroke_preserve(cr);
+    cairo_clip(cr);
 
     cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
     cairo_set_font_size(cr, 11.0);
-    cairo_set_source_rgb(cr, 0.75, 0.78, 0.82);
-    cairo_move_to(cr, 12, 20);
-    cairo_show_text(cr, "Convergence du Poids (Jaune = Moyenne colonie | Rouge = Meilleur ACO | Vert = Optimal)");
+    cairo_set_source_rgb(cr, 0.60, 0.60, 0.63);
+    cairo_move_to(cr, 16, 22);
+    cairo_show_text(cr, "CONVERGENCE DU POIDS  ·  INFLUENCE DE α ET β");
 
     if (app->iteration < 2) {
-        cairo_set_source_rgb(cr, 0.55, 0.58, 0.62);
-        cairo_move_to(cr, 12, height / 2);
-        cairo_show_text(cr, "Exécutez au moins 2 itérations pour tracer la courbe d'influence de α et β.");
+        cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
+        cairo_set_font_size(cr, 12.0);
+        cairo_set_source_rgb(cr, 0.48, 0.48, 0.52);
+        cairo_move_to(cr, 16, h / 2.0 + 6);
+        cairo_show_text(cr, "Cliquez sur « 1 Pas » ou « Lancer » pour observer la courbe d'apprentissage.");
         return FALSE;
     }
 
@@ -554,57 +750,73 @@ static gboolean on_draw_chart(GtkWidget* widget, cairo_t* cr, gpointer data) {
     }
 
     double span = (maxV - minV > 1e-6) ? (maxV - minV) : 1.0;
-    double left = 55.0, right = width - 20.0, top = 35.0, bottom = height - 22.0;
-    double w = right - left;
-    double h = bottom - top;
+    double left = 56.0, right = w - 18.0, top = 36.0, bottom = h - 20.0;
+    double cw = right - left;
+    double ch = bottom - top;
 
-    // Axes
-    cairo_set_source_rgb(cr, 0.35, 0.38, 0.42);
+    cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.06);
     cairo_set_line_width(cr, 1.0);
-    cairo_move_to(cr, left, top);
-    cairo_line_to(cr, left, bottom);
-    cairo_line_to(cr, right, bottom);
+    for (int g = 0; g <= 2; g++) {
+        double gy = top + (g / 2.0) * ch;
+        cairo_move_to(cr, left, gy);
+        cairo_line_to(cr, right, gy);
+    }
     cairo_stroke(cr);
 
     char buf[32];
     cairo_set_font_size(cr, 10.0);
+    cairo_set_source_rgb(cr, 0.55, 0.55, 0.58);
     snprintf(buf, sizeof(buf), "%.1f", maxV);
-    cairo_move_to(cr, 5, top + 5);
+    cairo_move_to(cr, 10, top + 4);
     cairo_show_text(cr, buf);
 
     snprintf(buf, sizeof(buf), "%.1f", minV);
-    cairo_move_to(cr, 5, bottom);
+    cairo_move_to(cr, 10, bottom);
     cairo_show_text(cr, buf);
 
-    // Ligne optimale de référence
     if (app->graphe.optimal_ref > 0.0) {
-        double yOpt = bottom - ((app->graphe.optimal_ref - minV) / span) * h;
-        double dashes[] = {5.0, 5.0};
+        double yOpt = bottom - ((app->graphe.optimal_ref - minV) / span) * ch;
+        double dashes[] = {4.0, 4.0};
         cairo_set_dash(cr, dashes, 2, 0);
-        cairo_set_source_rgb(cr, 0.30, 0.90, 0.50);
+        cairo_set_source_rgb(cr, 0.19, 0.82, 0.35);
+        cairo_set_line_width(cr, 1.5);
         cairo_move_to(cr, left, yOpt);
         cairo_line_to(cr, right, yOpt);
         cairo_stroke(cr);
         cairo_set_dash(cr, NULL, 0, 0);
     }
 
-    // Courbe moyenne (jaune)
-    cairo_set_source_rgba(cr, 1.0, 0.75, 0.25, 0.7);
+    cairo_pattern_t* grad = cairo_pattern_create_linear(0, top, 0, bottom);
+    cairo_pattern_add_color_stop_rgba(grad, 0.0, 1.0, 0.27, 0.23, 0.28);
+    cairo_pattern_add_color_stop_rgba(grad, 1.0, 1.0, 0.27, 0.23, 0.0);
+
+    cairo_move_to(cr, left, bottom);
+    for (int i = 0; i < app->iteration; i++) {
+        double x = left + ((double)i / (app->iteration - 1)) * cw;
+        double y = bottom - ((app->hist_meilleur[i] - minV) / span) * ch;
+        cairo_line_to(cr, x, y);
+    }
+    cairo_line_to(cr, right, bottom);
+    cairo_close_path(cr);
+    cairo_set_source(cr, grad);
+    cairo_fill(cr);
+    cairo_pattern_destroy(grad);
+
+    cairo_set_source_rgba(cr, 1.0, 0.62, 0.04, 0.65);
     cairo_set_line_width(cr, 1.5);
     for (int i = 0; i < app->iteration; i++) {
-        double x = left + ((double)i / (app->iteration - 1)) * w;
-        double y = bottom - ((app->hist_moyenne[i] - minV) / span) * h;
+        double x = left + ((double)i / (app->iteration - 1)) * cw;
+        double y = bottom - ((app->hist_moyenne[i] - minV) / span) * ch;
         if (i == 0) cairo_move_to(cr, x, y);
         else cairo_line_to(cr, x, y);
     }
     cairo_stroke(cr);
 
-    // Courbe meilleur (rouge)
-    cairo_set_source_rgb(cr, 1.0, 0.33, 0.37);
-    cairo_set_line_width(cr, 2.2);
+    cairo_set_source_rgb(cr, 1.0, 0.27, 0.23);
+    cairo_set_line_width(cr, 2.4);
     for (int i = 0; i < app->iteration; i++) {
-        double x = left + ((double)i / (app->iteration - 1)) * w;
-        double y = bottom - ((app->hist_meilleur[i] - minV) / span) * h;
+        double x = left + ((double)i / (app->iteration - 1)) * cw;
+        double y = bottom - ((app->hist_meilleur[i] - minV) / span) * ch;
         if (i == 0) cairo_move_to(cr, x, y);
         else cairo_line_to(cr, x, y);
     }
@@ -614,7 +826,7 @@ static gboolean on_draw_chart(GtkWidget* widget, cairo_t* cr, gpointer data) {
 }
 
 // ============================================================================
-// MISE À JOUR INTERFACE & CALLBACKS GTK
+// CALLBACKS & MISES À JOUR UI
 // ============================================================================
 static void mettre_a_jour_diagnostic_params(AppState* app) {
     double a = app->alpha;
@@ -622,50 +834,66 @@ static void mettre_a_jour_diagnostic_params(AppState* app) {
     const char* msg;
 
     if (a == 0.0 && b == 0.0) {
-        msg = "<i>α=0, β=0 : Marche purement aléatoire (ni mémoire, ni distance).</i>";
+        msg = "α = 0, β = 0 : Exploration purement aléatoire (aucune mémoire ni distance).";
     } else if (a == 0.0) {
-        msg = "<i>α=0 : Phéromones ignorées → recherche gloutonne probabiliste.</i>";
+        msg = "α = 0 : Phéromones ignorées → comportement glouton stochastique.";
     } else if (b == 0.0) {
-        msg = "<i>β=0 : Distances ignorées → convergence lente ou bloquée.</i>";
+        msg = "β = 0 : Distances ignorées → convergence aveugle sur les pistes.";
     } else if (a > b * 1.5) {
-        msg = "<i>α dominant : Forte amplification des pistes → convergence rapide (risque minimum local).</i>";
+        msg = "α dominant : Forte amplification des phéromones → convergence rapide.";
     } else if (b > a * 1.5) {
-        msg = "<i>β dominant : Forte attirance vers les voisins proches → bon départ, exploration réduite.</i>";
+        msg = "β dominant : Attirance forte vers les villes proches → bon démarrage.";
     } else {
-        msg = "<i>Équilibre α / β : Compromis optimal entre exploration et exploitation.</i>";
+        msg = "Équilibre α / β : Compromis optimal entre mémoire et proximité.";
     }
-    gtk_label_set_markup(GTK_LABEL(app->lbl_diag), msg);
+    gtk_label_set_text(GTK_LABEL(app->lbl_diag), msg);
 }
 
 static void rafraichir_interface(AppState* app) {
-    char stats[512];
+    char buf_iter[128], buf_aco[128], buf_opt[160];
+
+    snprintf(buf_iter, sizeof(buf_iter),
+             "<span size='small' foreground='#98989D'>ITÉRATION</span>\n"
+             "<span size='large' weight='bold'>%d</span> <span size='small' foreground='#98989D'>(%d villes)</span>",
+             app->iteration, app->graphe.n);
+    gtk_label_set_markup(GTK_LABEL(app->lbl_kpi_iter), buf_iter);
+
+    if (app->iteration > 0) {
+        snprintf(buf_aco, sizeof(buf_aco),
+                 "<span size='small' foreground='#98989D'>MEILLEUR ACO</span>\n"
+                 "<span size='large' weight='bold' foreground='#FF453A'>%.2f</span>",
+                 app->meilleur_global.poids);
+    } else {
+        snprintf(buf_aco, sizeof(buf_aco),
+                 "<span size='small' foreground='#98989D'>MEILLEUR ACO</span>\n"
+                 "<span size='large' weight='bold' foreground='#636366'>—</span>");
+    }
+    gtk_label_set_markup(GTK_LABEL(app->lbl_kpi_aco), buf_aco);
+
     double ref = (app->graphe.optimal_ref > 0.0) ? app->graphe.optimal_ref
                : (app->meilleur_fb.chemin ? app->meilleur_fb.poids : -1.0);
 
-    if (app->iteration > 0 && ref > 0.0) {
-        double ecart = ((app->meilleur_global.poids - ref) / ref) * 100.0;
-        snprintf(stats, sizeof(stats),
-                 "<b>Sommets :</b> %d  |  <b>Itération :</b> %d\n"
-                 "<b>Meilleur ACO :</b> <span foreground='#e04856'>%.2f</span> (%.2f ms/pas)\n"
-                 "<b>Optimal réf. :</b> <span foreground='#2e9e5b'>%.2f</span> (Écart : <b>+%.2f %%</b>)",
-                 app->graphe.n, app->iteration,
-                 app->meilleur_global.poids, app->meilleur_global.temps_ms,
-                 ref, ecart);
-    } else if (app->iteration > 0) {
-        snprintf(stats, sizeof(stats),
-                 "<b>Sommets :</b> %d  |  <b>Itération :</b> %d\n"
-                 "<b>Meilleur ACO :</b> <span foreground='#e04856'>%.2f</span> (%.2f ms/pas)",
-                 app->graphe.n, app->iteration,
-                 app->meilleur_global.poids, app->meilleur_global.temps_ms);
+    if (ref > 0.0) {
+        if (app->iteration > 0) {
+            double ecart = ((app->meilleur_global.poids - ref) / ref) * 100.0;
+            snprintf(buf_opt, sizeof(buf_opt),
+                     "<span size='small' foreground='#98989D'>OPTIMAL / ÉCART</span>\n"
+                     "<span size='large' weight='bold' foreground='#30D158'>%.2f</span> "
+                     "<span size='small' foreground='#F5F5F7'>(+%.1f%%)</span>",
+                     ref, ecart);
+        } else {
+            snprintf(buf_opt, sizeof(buf_opt),
+                     "<span size='small' foreground='#98989D'>OPTIMAL RÉF.</span>\n"
+                     "<span size='large' weight='bold' foreground='#30D158'>%.2f</span>",
+                     ref);
+        }
     } else {
-        snprintf(stats, sizeof(stats),
-                 "<b>Sommets :</b> %d  |  <b>Itération :</b> 0\n"
-                 "<b>Optimal fichier :</b> %s",
-                 app->graphe.n,
-                 (app->graphe.optimal_ref > 0.0) ? "Chargé" : "Non défini");
+        snprintf(buf_opt, sizeof(buf_opt),
+                 "<span size='small' foreground='#98989D'>OPTIMAL RÉF.</span>\n"
+                 "<span size='large' weight='bold' foreground='#636366'>N/A</span>");
     }
+    gtk_label_set_markup(GTK_LABEL(app->lbl_kpi_opt), buf_opt);
 
-    gtk_label_set_markup(GTK_LABEL(app->lbl_stats), stats);
     gtk_widget_queue_draw(app->drawing_graph);
     gtk_widget_queue_draw(app->drawing_chart);
 }
@@ -689,10 +917,10 @@ static void on_play_clicked(GtkButton* btn, gpointer data) {
     if (app->timer_id > 0) {
         g_source_remove(app->timer_id);
         app->timer_id = 0;
-        gtk_button_set_label(btn, "▶ Lancer");
+        gtk_button_set_label(btn, "▶  Lancer");
     } else {
         app->timer_id = g_timeout_add(app->vitesse_ms, on_timer_tick, app);
-        gtk_button_set_label(btn, "⏸ Pause");
+        gtk_button_set_label(btn, "⏸  Pause");
     }
 }
 
@@ -702,7 +930,7 @@ static void on_reset_clicked(GtkButton* btn, gpointer data) {
     if (app->timer_id > 0) {
         g_source_remove(app->timer_id);
         app->timer_id = 0;
-        gtk_button_set_label(GTK_BUTTON(app->btn_play), "▶ Lancer");
+        gtk_button_set_label(GTK_BUTTON(app->btn_play), "▶  Lancer");
     }
     initialiser_simulation(app);
     rafraichir_interface(app);
@@ -714,7 +942,7 @@ static void on_alea_clicked(GtkButton* btn, gpointer data) {
     if (app->timer_id > 0) {
         g_source_remove(app->timer_id);
         app->timer_id = 0;
-        gtk_button_set_label(GTK_BUTTON(app->btn_play), "▶ Lancer");
+        gtk_button_set_label(GTK_BUTTON(app->btn_play), "▶  Lancer");
     }
     int n = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(app->spin_alea));
     generer_graphe_aleatoire(app, n);
@@ -725,17 +953,17 @@ static void on_charger_clicked(GtkButton* btn, gpointer data) {
     (void)btn;
     AppState* app = (AppState*)data;
     GtkWidget* dialog = gtk_file_chooser_dialog_new(
-        "Ouvrir un graphe (Ligne 1 = Optimal, puis x y nom)",
+        "Ouvrir un fichier graphe (Ligne 1 = Optimal, puis x y nom)",
         NULL, GTK_FILE_CHOOSER_ACTION_OPEN,
-        "_Annuler", GTK_RESPONSE_CANCEL,
-        "_Ouvrir", GTK_RESPONSE_ACCEPT, NULL);
+        "Annuler", GTK_RESPONSE_CANCEL,
+        "Ouvrir", GTK_RESPONSE_ACCEPT, NULL);
 
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         char* filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
         if (app->timer_id > 0) {
             g_source_remove(app->timer_id);
             app->timer_id = 0;
-            gtk_button_set_label(GTK_BUTTON(app->btn_play), "▶ Lancer");
+            gtk_button_set_label(GTK_BUTTON(app->btn_play), "▶  Lancer");
         }
         if (!charger_graphe_fichier(app, filename)) {
             GtkWidget* err = gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR,
@@ -754,7 +982,7 @@ static void on_brute_clicked(GtkButton* btn, gpointer data) {
     AppState* app = (AppState*)data;
     if (app->graphe.n > 12) {
         GtkWidget* msg = gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL, GTK_MESSAGE_INFO,
-            GTK_BUTTONS_OK, "Force brute limitée à 12 sommets max (12! = 479M permutations).");
+            GTK_BUTTONS_OK, "Force brute limitée à 12 sommets maximum (12! = 479M permutations).");
         gtk_dialog_run(GTK_DIALOG(msg));
         gtk_widget_destroy(msg);
         return;
@@ -783,21 +1011,38 @@ static void on_param_changed(GtkSpinButton* spin, gpointer data) {
 static void on_toggle_phero(GtkToggleButton* tb, gpointer data) {
     AppState* app = (AppState*)data;
     app->afficher_phero = gtk_toggle_button_get_active(tb);
+    gtk_button_set_label(GTK_BUTTON(tb), app->afficher_phero ? "● Phéromones" : "○ Phéromones");
     gtk_widget_queue_draw(app->drawing_graph);
 }
 
 static void on_toggle_noms(GtkToggleButton* tb, gpointer data) {
     AppState* app = (AppState*)data;
     app->afficher_noms = gtk_toggle_button_get_active(tb);
+    gtk_button_set_label(GTK_BUTTON(tb), app->afficher_noms ? "● Noms sommets" : "○ Noms sommets");
     gtk_widget_queue_draw(app->drawing_graph);
 }
 
+static GtkWidget* creer_carte(const char* titre, GtkWidget** contenu_box) {
+    GtkWidget* card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+    gtk_style_context_add_class(gtk_widget_get_style_context(card), "card");
+
+    GtkWidget* lbl = gtk_label_new(titre);
+    gtk_label_set_xalign(GTK_LABEL(lbl), 0.0);
+    gtk_style_context_add_class(gtk_widget_get_style_context(lbl), "section-title");
+    gtk_box_pack_start(GTK_BOX(card), lbl, FALSE, FALSE, 0);
+
+    *contenu_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+    gtk_box_pack_start(GTK_BOX(card), *contenu_box, FALSE, FALSE, 0);
+    return card;
+}
+
 // ============================================================================
-// POINT D'ENTRÉE & CONSTRUCTION DE L'INTERFACE
+// MAIN
 // ============================================================================
 int main(int argc, char** argv) {
     srand((unsigned int)time(NULL));
     gtk_init(&argc, &argv);
+    appliquer_style_macos();
 
     AppState app = {0};
     app.alpha = 1.0;
@@ -805,97 +1050,102 @@ int main(int argc, char** argv) {
     app.rho = 0.35;
     app.Q = 100.0;
     app.nb_fourmis = 20;
-    app.vitesse_ms = 120;
+    app.vitesse_ms = 110;
     app.afficher_phero = true;
     app.afficher_noms = true;
 
     generer_graphe_aleatoire(&app, 10);
 
     GtkWidget* window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_title(GTK_WINDOW(window), "Démonstrateur TSP : ACO vs Force Brute (GTK3 / C)");
-    gtk_window_set_default_size(GTK_WINDOW(window), 1200, 760);
+    gtk_window_set_title(GTK_WINDOW(window), "TSP · Colonies de Fourmis (ACO)");
+    gtk_window_set_default_size(GTK_WINDOW(window), 1240, 780);
     g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 
-    GtkWidget* hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-    gtk_container_set_border_width(GTK_CONTAINER(hbox), 8);
-    gtk_container_add(GTK_CONTAINER(window), hbox);
+    GtkWidget* root = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 14);
+    gtk_container_set_border_width(GTK_CONTAINER(root), 14);
+    gtk_container_add(GTK_CONTAINER(window), root);
 
-    // --- ZONE GAUCHE : GRAPHE + COURBE ---
-    GtkWidget* vpaned = gtk_paned_new(GTK_ORIENTATION_VERTICAL);
-    gtk_box_pack_start(GTK_BOX(hbox), vpaned, TRUE, TRUE, 0);
+    // --- COLONNE GAUCHE : GRAPHE + COURBE ---
+    GtkWidget* left_col = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
+    gtk_box_pack_start(GTK_BOX(root), left_col, TRUE, TRUE, 0);
 
     app.drawing_graph = gtk_drawing_area_new();
-    gtk_widget_set_size_request(app.drawing_graph, 650, 460);
+    gtk_widget_set_size_request(app.drawing_graph, 680, 480);
     g_signal_connect(app.drawing_graph, "draw", G_CALLBACK(on_draw_graph), &app);
 
     app.drawing_chart = gtk_drawing_area_new();
-    gtk_widget_set_size_request(app.drawing_chart, 650, 200);
+    gtk_widget_set_size_request(app.drawing_chart, 680, 195);
     g_signal_connect(app.drawing_chart, "draw", G_CALLBACK(on_draw_chart), &app);
 
-    gtk_paned_pack1(GTK_PANED(vpaned), app.drawing_graph, TRUE, FALSE);
-    gtk_paned_pack2(GTK_PANED(vpaned), app.drawing_chart, FALSE, FALSE);
+    gtk_box_pack_start(GTK_BOX(left_col), app.drawing_graph, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(left_col), app.drawing_chart, FALSE, FALSE, 0);
 
-    // --- ZONE DROITE : CONTRÔLES ---
-    GtkWidget* vbox_ctrl = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
-    gtk_widget_set_size_request(vbox_ctrl, 360, -1);
-    gtk_box_pack_start(GTK_BOX(hbox), vbox_ctrl, FALSE, FALSE, 0);
+    // --- COLONNE DROITE : PANNEAU DE CONTRÔLE ---
+    GtkWidget* right_col = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
+    gtk_widget_set_size_request(right_col, 370, -1);
+    gtk_box_pack_start(GTK_BOX(root), right_col, FALSE, FALSE, 0);
 
-    // 1. Données du graphe
-    GtkWidget* frame_g = gtk_frame_new("1. Données du Graphe");
-    GtkWidget* box_g = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
-    gtk_container_set_border_width(GTK_CONTAINER(box_g), 8);
-    gtk_container_add(GTK_CONTAINER(frame_g), box_g);
+    // 0. Cartes KPIs
+    GtkWidget* kpi_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    app.lbl_kpi_iter = gtk_label_new("");
+    app.lbl_kpi_aco = gtk_label_new("");
+    app.lbl_kpi_opt = gtk_label_new("");
+    gtk_label_set_xalign(GTK_LABEL(app.lbl_kpi_iter), 0.0);
+    gtk_label_set_xalign(GTK_LABEL(app.lbl_kpi_aco), 0.0);
+    gtk_label_set_xalign(GTK_LABEL(app.lbl_kpi_opt), 0.0);
 
-    GtkWidget* btn_charger = gtk_button_new_with_label("Charger fichier (.txt : Opt + x y nom)");
-    g_signal_connect(btn_charger, "clicked", G_CALLBACK(on_charger_clicked), &app);
-    gtk_box_pack_start(GTK_BOX(box_g), btn_charger, FALSE, FALSE, 0);
+    gtk_style_context_add_class(gtk_widget_get_style_context(app.lbl_kpi_iter), "kpi-box");
+    gtk_style_context_add_class(gtk_widget_get_style_context(app.lbl_kpi_aco), "kpi-box");
+    gtk_style_context_add_class(gtk_widget_get_style_context(app.lbl_kpi_opt), "kpi-box");
 
-    GtkWidget* box_alea = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
-    app.spin_alea = gtk_spin_button_new_with_range(3, 150, 1);
-    gtk_spin_button_set_value(GTK_SPIN_BUTTON(app.spin_alea), 10);
-    GtkWidget* btn_alea = gtk_button_new_with_label("Générer aléatoire");
-    g_signal_connect(btn_alea, "clicked", G_CALLBACK(on_alea_clicked), &app);
-    gtk_box_pack_start(GTK_BOX(box_alea), gtk_label_new("Sommets :"), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(box_alea), app.spin_alea, TRUE, TRUE, 0);
-    gtk_box_pack_start(GTK_BOX(box_alea), btn_alea, TRUE, TRUE, 0);
-    gtk_box_pack_start(GTK_BOX(box_g), box_alea, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(vbox_ctrl), frame_g, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(kpi_row), app.lbl_kpi_iter, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(kpi_row), app.lbl_kpi_aco, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(kpi_row), app.lbl_kpi_opt, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(right_col), kpi_row, FALSE, FALSE, 0);
 
-    // 2. Exécution Pas à Pas
-    GtkWidget* frame_e = gtk_frame_new("2. Exécution Pas-à-Pas");
-    GtkWidget* grid_e = gtk_grid_new();
-    gtk_grid_set_row_spacing(GTK_GRID(grid_e), 6);
-    gtk_grid_set_column_spacing(GTK_GRID(grid_e), 6);
-    gtk_container_set_border_width(GTK_CONTAINER(grid_e), 8);
-    gtk_container_add(GTK_CONTAINER(frame_e), grid_e);
+    // 1. Carte Exécution Pas-à-Pas
+    GtkWidget* box_exec;
+    GtkWidget* card_exec = creer_carte("EXÉCUTION PAS-À-PAS", &box_exec);
 
-    GtkWidget* btn_step = gtk_button_new_with_label("⏭ 1 Pas (Itération)");
-    app.btn_play = gtk_button_new_with_label("▶ Lancer");
-    GtkWidget* btn_reset = gtk_button_new_with_label("↺ Réinitialiser");
-    app.spin_vitesse = gtk_spin_button_new_with_range(10, 2000, 10);
-    gtk_spin_button_set_value(GTK_SPIN_BUTTON(app.spin_vitesse), 120);
-    GtkWidget* btn_brute = gtk_button_new_with_label("⚡ Comparer Force Brute (n ≤ 12)");
+    GtkWidget* row_btns1 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    GtkWidget* btn_step = gtk_button_new_with_label("⏭  1 Pas");
+    gtk_style_context_add_class(gtk_widget_get_style_context(btn_step), "primary");
+    app.btn_play = gtk_button_new_with_label("▶  Lancer");
+    GtkWidget* btn_reset = gtk_button_new_with_label("↺  Reset");
 
     g_signal_connect(btn_step, "clicked", G_CALLBACK(on_step_clicked), &app);
     g_signal_connect(app.btn_play, "clicked", G_CALLBACK(on_play_clicked), &app);
     g_signal_connect(btn_reset, "clicked", G_CALLBACK(on_reset_clicked), &app);
+
+    gtk_box_pack_start(GTK_BOX(row_btns1), btn_step, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(row_btns1), app.btn_play, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(row_btns1), btn_reset, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(box_exec), row_btns1, FALSE, FALSE, 0);
+
+    GtkWidget* row_speed = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    app.spin_vitesse = gtk_spin_button_new_with_range(10, 2000, 10);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(app.spin_vitesse), app.vitesse_ms);
     g_signal_connect(app.spin_vitesse, "value-changed", G_CALLBACK(on_param_changed), &app);
+    GtkWidget* lbl_speed = gtk_label_new("Délai animation (ms) :");
+    gtk_label_set_xalign(GTK_LABEL(lbl_speed), 0.0);
+    gtk_box_pack_start(GTK_BOX(row_speed), lbl_speed, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(row_speed), app.spin_vitesse, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(box_exec), row_speed, FALSE, FALSE, 0);
+
+    GtkWidget* btn_brute = gtk_button_new_with_label("⚡  Comparer avec Force Brute (n ≤ 12)");
+    gtk_style_context_add_class(gtk_widget_get_style_context(btn_brute), "accent-green");
     g_signal_connect(btn_brute, "clicked", G_CALLBACK(on_brute_clicked), &app);
+    gtk_box_pack_start(GTK_BOX(box_exec), btn_brute, FALSE, FALSE, 0);
 
-    gtk_grid_attach(GTK_GRID(grid_e), btn_step, 0, 0, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid_e), app.btn_play, 1, 0, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid_e), btn_reset, 0, 1, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid_e), app.spin_vitesse, 1, 1, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid_e), btn_brute, 0, 2, 2, 1);
-    gtk_box_pack_start(GTK_BOX(vbox_ctrl), frame_e, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(right_col), card_exec, FALSE, FALSE, 0);
 
-    // 3. Influence des paramètres Alpha / Beta
-    GtkWidget* frame_p = gtk_frame_new("3. Influence des Paramètres (α et β)");
+    // 2. Carte Paramètres Alpha / Beta
+    GtkWidget* box_params;
+    GtkWidget* card_params = creer_carte("INFLUENCE DES PARAMÈTRES (α & β)", &box_params);
+
     GtkWidget* grid_p = gtk_grid_new();
-    gtk_grid_set_row_spacing(GTK_GRID(grid_p), 6);
-    gtk_grid_set_column_spacing(GTK_GRID(grid_p), 6);
-    gtk_container_set_border_width(GTK_CONTAINER(grid_p), 8);
-    gtk_container_add(GTK_CONTAINER(frame_p), grid_p);
+    gtk_grid_set_row_spacing(GTK_GRID(grid_p), 8);
+    gtk_grid_set_column_spacing(GTK_GRID(grid_p), 10);
 
     app.spin_alpha = gtk_spin_button_new_with_range(0.0, 10.0, 0.2);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(app.spin_alpha), app.alpha);
@@ -911,42 +1161,65 @@ int main(int argc, char** argv) {
     g_signal_connect(app.spin_rho, "value-changed", G_CALLBACK(on_param_changed), &app);
     g_signal_connect(app.spin_fourmis, "value-changed", G_CALLBACK(on_param_changed), &app);
 
+    const char* labels_p[] = {
+        "α  (Poids des phéromones)",
+        "β  (Attirance distance 1/d)",
+        "ρ  (Taux d'évaporation)",
+        "Nombre de fourmis"
+    };
+    GtkWidget* spins_p[] = { app.spin_alpha, app.spin_beta, app.spin_rho, app.spin_fourmis };
+
+    for (int i = 0; i < 4; i++) {
+        GtkWidget* l = gtk_label_new(labels_p[i]);
+        gtk_label_set_xalign(GTK_LABEL(l), 0.0);
+        gtk_widget_set_hexpand(l, TRUE);
+        gtk_grid_attach(GTK_GRID(grid_p), l, 0, i, 1, 1);
+        gtk_grid_attach(GTK_GRID(grid_p), spins_p[i], 1, i, 1, 1);
+    }
+    gtk_box_pack_start(GTK_BOX(box_params), grid_p, FALSE, FALSE, 0);
+
     app.lbl_diag = gtk_label_new("");
     gtk_label_set_line_wrap(GTK_LABEL(app.lbl_diag), TRUE);
+    gtk_label_set_xalign(GTK_LABEL(app.lbl_diag), 0.0);
     gtk_widget_set_size_request(app.lbl_diag, 320, -1);
+    gtk_style_context_add_class(gtk_widget_get_style_context(app.lbl_diag), "diag-pill");
+    gtk_box_pack_start(GTK_BOX(box_params), app.lbl_diag, FALSE, FALSE, 0);
 
-    gtk_grid_attach(GTK_GRID(grid_p), gtk_label_new("α (Phéromones) :"), 0, 0, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid_p), app.spin_alpha, 1, 0, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid_p), gtk_label_new("β (Distance 1/d) :"), 0, 1, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid_p), app.spin_beta, 1, 1, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid_p), gtk_label_new("ρ (Évaporation) :"), 0, 2, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid_p), app.spin_rho, 1, 2, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid_p), gtk_label_new("Nb fourmis :"), 0, 3, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid_p), app.spin_fourmis, 1, 3, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid_p), app.lbl_diag, 0, 4, 2, 1);
-    gtk_box_pack_start(GTK_BOX(vbox_ctrl), frame_p, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(right_col), card_params, FALSE, FALSE, 0);
 
-    // 4. Métriques & Options d'affichage
-    GtkWidget* frame_s = gtk_frame_new("4. Résultats & Affichage");
-    GtkWidget* box_s = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
-    gtk_container_set_border_width(GTK_CONTAINER(box_s), 8);
-    gtk_container_add(GTK_CONTAINER(frame_s), box_s);
+    // 3. Carte Données du Graphe & Calques (Pilules toggle sans SVG)
+    GtkWidget* box_graph;
+    GtkWidget* card_graph = creer_carte("GRAPHE & CALQUES", &box_graph);
 
-    app.lbl_stats = gtk_label_new("");
-    gtk_label_set_xalign(GTK_LABEL(app.lbl_stats), 0.0);
-    gtk_box_pack_start(GTK_BOX(box_s), app.lbl_stats, FALSE, FALSE, 0);
+    GtkWidget* btn_charger = gtk_button_new_with_label("Importer un fichier (.txt : Opt + x y nom)");
+    g_signal_connect(btn_charger, "clicked", G_CALLBACK(on_charger_clicked), &app);
+    gtk_box_pack_start(GTK_BOX(box_graph), btn_charger, FALSE, FALSE, 0);
 
-    GtkWidget* chk_phero = gtk_check_button_new_with_label("Afficher les phéromones");
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(chk_phero), TRUE);
-    g_signal_connect(chk_phero, "toggled", G_CALLBACK(on_toggle_phero), &app);
+    GtkWidget* row_alea = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    app.spin_alea = gtk_spin_button_new_with_range(3, 150, 1);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(app.spin_alea), 10);
+    GtkWidget* btn_alea = gtk_button_new_with_label("Générer aléatoire");
+    g_signal_connect(btn_alea, "clicked", G_CALLBACK(on_alea_clicked), &app);
+    gtk_box_pack_start(GTK_BOX(row_alea), app.spin_alea, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(row_alea), btn_alea, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(box_graph), row_alea, FALSE, FALSE, 0);
 
-    GtkWidget* chk_noms = gtk_check_button_new_with_label("Afficher les noms des sommets");
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(chk_noms), TRUE);
-    g_signal_connect(chk_noms, "toggled", G_CALLBACK(on_toggle_noms), &app);
+    GtkWidget* row_pills = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    GtkWidget* pill_phero = gtk_toggle_button_new_with_label("● Phéromones");
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pill_phero), TRUE);
+    gtk_style_context_add_class(gtk_widget_get_style_context(pill_phero), "pill-toggle");
+    g_signal_connect(pill_phero, "toggled", G_CALLBACK(on_toggle_phero), &app);
 
-    gtk_box_pack_start(GTK_BOX(box_s), chk_phero, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(box_s), chk_noms, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(vbox_ctrl), frame_s, FALSE, FALSE, 0);
+    GtkWidget* pill_noms = gtk_toggle_button_new_with_label("● Noms sommets");
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pill_noms), TRUE);
+    gtk_style_context_add_class(gtk_widget_get_style_context(pill_noms), "pill-toggle");
+    g_signal_connect(pill_noms, "toggled", G_CALLBACK(on_toggle_noms), &app);
+
+    gtk_box_pack_start(GTK_BOX(row_pills), pill_phero, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(row_pills), pill_noms, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(box_graph), row_pills, FALSE, FALSE, 0);
+
+    gtk_box_pack_start(GTK_BOX(right_col), card_graph, FALSE, FALSE, 0);
 
     mettre_a_jour_diagnostic_params(&app);
     rafraichir_interface(&app);
@@ -954,7 +1227,6 @@ int main(int argc, char** argv) {
     gtk_widget_show_all(window);
     gtk_main();
 
-    // Nettoyage final
     liberer_simulation(&app);
     free(app.graphe.sommets);
     free(app.meilleur_fb.chemin);
