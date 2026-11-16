@@ -133,21 +133,21 @@ bool coord_est_dans_tableau(Coord* tab, int n, Coord c) {
     return false;
 }
 
-Graphe* creer_graphe_aleatoire(int nb_sommet) {
-    Graphe* g = malloc(sizeof(Graphe));
+Graphe creer_graphe_aleatoire(int nb_sommet) {
+    Graphe g;
     Coord* tableau_coord = malloc(nb_sommet*sizeof(Coord));
     for (int i = 0; i < nb_sommet; i++) {
         int x = rand() % N; 
         int y = rand() % N;
         Coord c = creer_coord(x, y);
-        while (coord_est_dans_tableau(tableau_coord, nb_sommet, c)) {
+        while (coord_est_dans_tableau(tableau_coord, i, c)) {
             int x = rand() % N;
             int y = rand() % N;
             Coord c = creer_coord(x, y);
         }
         tableau_coord[i] = c;
     }
-    g->graphe = tableau_coord;
+    g.graphe = tableau_coord;
     return g;
 }
 
@@ -316,6 +316,16 @@ Resultat* ACO(Graphe graphe, int n, int nb_itérations, int nb_fourmis, double a
     resultat -> poids = best_cost;
     resultat -> chemin = best_path;
     return resultat;
+}
+
+void test(int nb_test) {
+    for (int i = 3; i < nb_test; i++) {
+        Graphe g = creer_graphe_aleatoire(i);
+        time_t t0;
+        time(&t0);
+        Resultat* r = ACO(g, i, 100, 15, 1, 1, 100, 0.35);
+    }
+    
 }
 
 int main(void) {
