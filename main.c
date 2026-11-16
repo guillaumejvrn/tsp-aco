@@ -25,7 +25,9 @@ double puissance_2(double n) {
 }
 
 double distance_euc(Coord c1, Coord c2) {
-    return sqrt(puissance_2(c1.x - c2.x) + puissance_2(c1.y - c2.y));
+    double res = sqrt(puissance_2(c1.x - c2.x) + puissance_2(c1.y - c2.y));
+    printf("distance = %lf\n", res);
+    return res;
 }
 
 /////////////// PART 4
@@ -329,6 +331,7 @@ void test(int nb_test) {
         Graphe g = creer_graphe_aleatoire(10);
         time_t t0_aco;
         time(&t0_aco);
+        printf("Aco :\n");
         Resultat* r_aco = ACO(g, 10, 100, 15, 1, 1, 100, 0.35);
         time_t t1_aco;
         time(&t1_aco);
@@ -336,6 +339,7 @@ void test(int nb_test) {
         printf("temps pour executer ACO : %ld\n", t_aco);
         time_t t0;
         time(&t0);
+        printf("Brute force :\n");
         Resultat* r_brute = force_brute(g, 10);
         time_t t1;
         time(&t1);
@@ -353,7 +357,7 @@ void test(int nb_test) {
 int main(void) {
     srand((unsigned int)time(NULL));
 
-    test(13);
+    test(10);
 
     /*Coord points_test1[5] = {
         {0, 0},   // 0 : Bas-gauche
