@@ -357,7 +357,7 @@ void test(int nb_test, int nb_sommets) {
 int main(void) {
     srand((unsigned int)time(NULL));
 
-    test(1);
+    test(1, 3);
 
     /*Coord points_test1[5] = {
         {0, 0},   // 0 : Bas-gauche
