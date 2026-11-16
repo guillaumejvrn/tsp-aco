@@ -8,6 +8,10 @@
 #include <float.h>
 #include <time.h>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 // ============================================================================
 // STRUCTURES DE DONNÉES
 // ============================================================================
@@ -29,6 +33,14 @@ typedef struct {
     double temps_ms;
 } Resultat;
 
+// Phases pédagogiques d'une itération ACO
+typedef enum {
+    PHASE_PRETE = 0,       // Prêt pour la phase 1 (Exploration)
+    PHASE_EXPLORATION = 1, // Fourmis lancées, chemins visibles, prêt pour Phase 2 (Évaporation)
+    PHASE_EVAPORATION = 2, // Évaporation appliquée, prêt pour Phase 3 (Dépôt)
+    PHASE_DEPOT = 3        // Dépôt appliqué, prêt pour Phase 4 (Bilan)
+} PhaseACO;
+
 typedef struct {
     Graphe graphe;
     double** pheromone;
@@ -40,14 +52,23 @@ typedef struct {
     double Q;
     int nb_fourmis;
 
-    // État simulation
+    // État simulation & pas-à-pas détaillé
     int iteration;
+    PhaseACO phase;
+    int** chemins_vague;
+    double* poids_vague;
+    int nb_vague;
+    double somme_poids_vague;
+    double max_depot_vague;
+    double t0_vague;
+
     Resultat meilleur_global;
     Resultat meilleur_iter;
     Resultat meilleur_fb;
     bool afficher_fb;
     bool afficher_phero;
     bool afficher_noms;
+    bool afficher_colonie;
 
     // Historique courbe
     double* hist_meilleur;
@@ -63,6 +84,7 @@ typedef struct {
     GtkWidget* lbl_kpi_opt;
     GtkWidget* lbl_kpi_iter;
     GtkWidget* lbl_diag;
+    GtkWidget* lbl_etape_algo;
     GtkWidget* btn_play;
     GtkWidget* spin_alpha;
     GtkWidget* spin_beta;
@@ -89,7 +111,7 @@ static const char* MACOS_DARK_CSS =
     "  background-color: #1E1E22;"
     "  border: 1px solid #2E2E34;"
     "  border-radius: 14px;"
-    "  padding: 12px;"
+    "  padding: 11px;"
     "}"
     ".section-title {"
     "  color: #98989D;"
@@ -101,7 +123,7 @@ static const char* MACOS_DARK_CSS =
     "  background-color: #26262B;"
     "  border: 1px solid #34343B;"
     "  border-radius: 10px;"
-    "  padding: 8px 10px;"
+    "  padding: 7px 10px;"
     "}"
     "button {"
     "  background-image: none;"
@@ -109,7 +131,7 @@ static const char* MACOS_DARK_CSS =
     "  color: #F5F5F7;"
     "  border: 1px solid #3A3A42;"
     "  border-radius: 9px;"
-    "  padding: 7px 12px;"
+    "  padding: 6px 10px;"
     "  font-weight: 600;"
     "  box-shadow: none;"
     "}"
@@ -129,8 +151,13 @@ static const char* MACOS_DARK_CSS =
     "  background-color: #2494FF;"
     "  border-color: #2494FF;"
     "}"
-    "button.primary:active {"
-    "  background-color: #0070E0;"
+    "button.step-phase {"
+    "  background-color: rgba(255, 159, 10, 0.16);"
+    "  border-color: rgba(255, 159, 10, 0.50);"
+    "  color: #FF9F0A;"
+    "}"
+    "button.step-phase:hover {"
+    "  background-color: rgba(255, 159, 10, 0.26);"
     "}"
     "button.accent-green {"
     "  background-color: rgba(48, 209, 88, 0.16);"
@@ -145,8 +172,8 @@ static const char* MACOS_DARK_CSS =
     "  border: 1px solid #383840;"
     "  color: #98989D;"
     "  border-radius: 16px;"
-    "  padding: 5px 12px;"
-    "  font-size: 12px;"
+    "  padding: 5px 10px;"
+    "  font-size: 11px;"
     "}"
     "button.pill-toggle:checked {"
     "  background-color: rgba(10, 132, 255, 0.22);"
@@ -177,8 +204,16 @@ static const char* MACOS_DARK_CSS =
     "  background-color: rgba(10, 132, 255, 0.12);"
     "  border: 1px solid rgba(10, 132, 255, 0.30);"
     "  border-radius: 9px;"
-    "  padding: 8px 10px;"
+    "  padding: 7px 10px;"
     "  color: #64D2FF;"
+    "  font-size: 11.5px;"
+    "}"
+    ".algo-box {"
+    "  background-color: #25252A;"
+    "  border: 1px solid #383842;"
+    "  border-radius: 10px;"
+    "  padding: 9px 11px;"
+    "  color: #E5E5EA;"
     "  font-size: 12px;"
     "}";
 
@@ -207,12 +242,10 @@ static void cairo_rounded_rect(cairo_t* cr, double x, double y, double w, double
 }
 
 // ============================================================================
-// UTILITAIRES MATHÉMATIQUES & MÉMOIRE
+// UTILITAIRES MATHÉMATIQUES & MÉMOIRE (PORTABLE macOS / LINUX / WINDOWS)
 // ============================================================================
 static double temps_actuel_ms(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
+    return g_get_monotonic_time() / 1000.0;
 }
 
 static double distance_euc(Sommet a, Sommet b) {
@@ -231,7 +264,21 @@ static double calculer_poids(const Graphe* g, const int* chemin) {
     return total;
 }
 
+static void liberer_vague(AppState* app) {
+    if (app->chemins_vague) {
+        for (int k = 0; k < app->nb_vague; k++) {
+            free(app->chemins_vague[k]);
+        }
+        free(app->chemins_vague);
+        app->chemins_vague = NULL;
+    }
+    free(app->poids_vague);
+    app->poids_vague = NULL;
+    app->nb_vague = 0;
+}
+
 static void liberer_simulation(AppState* app) {
+    liberer_vague(app);
     if (app->pheromone) {
         for (int i = 0; i < app->graphe.n; i++) {
             free(app->pheromone[i]);
@@ -253,6 +300,7 @@ static void liberer_simulation(AppState* app) {
     app->hist_moyenne = NULL;
     app->hist_capacite = 0;
     app->iteration = 0;
+    app->phase = PHASE_PRETE;
 }
 
 static void initialiser_simulation(AppState* app) {
@@ -276,6 +324,7 @@ static void initialiser_simulation(AppState* app) {
     app->hist_capacite = 256;
     app->hist_meilleur = malloc(app->hist_capacite * sizeof(double));
     app->hist_moyenne = malloc(app->hist_capacite * sizeof(double));
+    app->phase = PHASE_PRETE;
 }
 
 // ============================================================================
@@ -324,13 +373,11 @@ static bool charger_graphe_fichier(AppState* app, const char* filename) {
             char nom[64] = "";
 
             if (lus == 3 && ok2 && ok3 && (!ok1 || strchr(col1, '.') == NULL)) {
-                // Format type 131_graphe.txt : nom x y
                 strncpy(nom, col1, 63);
                 nom[63] = '\0';
                 x = v2;
                 y = v3;
             } else if (ok1 && ok2) {
-                // Format : x y [nom]
                 x = v1;
                 y = v2;
                 if (lus == 3) {
@@ -395,18 +442,22 @@ static void generer_graphe_aleatoire(AppState* app, int n) {
 }
 
 // ============================================================================
-// MOTEUR ACO (PAS À PAS) & FORCE BRUTE
+// MOTEUR ACO DÉCOMPOSÉ EN 4 SOUS-ÉTAPES PÉDAGOGIQUES
 // ============================================================================
-static void executer_une_iteration_aco(AppState* app) {
+
+// Sous-étape 1 : Construction des m cycles par les fourmis
+static void phase1_exploration_fourmis(AppState* app) {
     int n = app->graphe.n;
     if (n < 3) return;
 
-    double t0 = temps_actuel_ms();
-    int nb_f = app->nb_fourmis;
+    liberer_vague(app);
+    app->t0_vague = temps_actuel_ms();
 
-    int** chemins_fourmis = malloc(nb_f * sizeof(int*));
-    double* poids_fourmis = malloc(nb_f * sizeof(double));
-    double somme_poids = 0.0;
+    int nb_f = app->nb_fourmis;
+    app->nb_vague = nb_f;
+    app->chemins_vague = malloc(nb_f * sizeof(int*));
+    app->poids_vague = malloc(nb_f * sizeof(double));
+    app->somme_poids_vague = 0.0;
     app->meilleur_iter.poids = DBL_MAX;
 
     for (int k = 0; k < nb_f; k++) {
@@ -460,45 +511,59 @@ static void executer_une_iteration_aco(AppState* app) {
         }
 
         double p = calculer_poids(&app->graphe, chemin);
-        chemins_fourmis[k] = chemin;
-        poids_fourmis[k] = p;
-        somme_poids += p;
+        app->chemins_vague[k] = chemin;
+        app->poids_vague[k] = p;
+        app->somme_poids_vague += p;
 
         if (p < app->meilleur_iter.poids) {
             app->meilleur_iter.poids = p;
             memcpy(app->meilleur_iter.chemin, chemin, n * sizeof(int));
         }
-        if (p < app->meilleur_global.poids) {
-            app->meilleur_global.poids = p;
-            memcpy(app->meilleur_global.chemin, chemin, n * sizeof(int));
-        }
 
         free(visite);
     }
 
-    // 1. Évaporation
+    app->phase = PHASE_EXPLORATION;
+}
+
+// Sous-étape 2 : Évaporation globale des phéromones
+static void phase2_evaporation(AppState* app) {
+    int n = app->graphe.n;
     for (int u = 0; u < n; u++) {
         for (int v = 0; v < n; v++) {
             app->pheromone[u][v] *= (1.0 - app->rho);
             if (app->pheromone[u][v] < 1e-6) app->pheromone[u][v] = 1e-6;
         }
     }
+    app->phase = PHASE_EVAPORATION;
+}
 
-    // 2. Dépôt proportionnel à Q / poids
-    for (int k = 0; k < nb_f; k++) {
-        double depot = app->Q / poids_fourmis[k];
+// Sous-étape 3 : Dépôt proportionnel à Q / poids
+static void phase3_depot_pheromones(AppState* app) {
+    int n = app->graphe.n;
+    app->max_depot_vague = 0.0;
+    for (int k = 0; k < app->nb_vague; k++) {
+        double depot = app->Q / app->poids_vague[k];
+        if (depot > app->max_depot_vague) app->max_depot_vague = depot;
         for (int i = 0; i < n; i++) {
-            int u = chemins_fourmis[k][i];
-            int v = chemins_fourmis[k][(i + 1) % n];
+            int u = app->chemins_vague[k][i];
+            int v = app->chemins_vague[k][(i + 1) % n];
             app->pheromone[u][v] += depot;
             app->pheromone[v][u] += depot;
         }
-        free(chemins_fourmis[k]);
     }
-    free(chemins_fourmis);
-    free(poids_fourmis);
+    app->phase = PHASE_DEPOT;
+}
 
-    app->meilleur_global.temps_ms = temps_actuel_ms() - t0;
+// Sous-étape 4 : Validation du bilan, courbe et passage à l'itération suivante
+static void phase4_bilan_iteration(AppState* app) {
+    int n = app->graphe.n;
+    if (app->meilleur_iter.poids < app->meilleur_global.poids) {
+        app->meilleur_global.poids = app->meilleur_iter.poids;
+        memcpy(app->meilleur_global.chemin, app->meilleur_iter.chemin, n * sizeof(int));
+    }
+
+    app->meilleur_global.temps_ms = temps_actuel_ms() - app->t0_vague;
 
     if (app->iteration >= app->hist_capacite) {
         app->hist_capacite *= 2;
@@ -506,8 +571,36 @@ static void executer_une_iteration_aco(AppState* app) {
         app->hist_moyenne = realloc(app->hist_moyenne, app->hist_capacite * sizeof(double));
     }
     app->hist_meilleur[app->iteration] = app->meilleur_global.poids;
-    app->hist_moyenne[app->iteration] = somme_poids / nb_f;
+    app->hist_moyenne[app->iteration] = app->somme_poids_vague / app->nb_vague;
     app->iteration++;
+
+    app->phase = PHASE_PRETE;
+}
+
+// Exécute 1 sous-étape à la fois
+static void executer_une_sous_etape(AppState* app) {
+    switch (app->phase) {
+        case PHASE_PRETE:       phase1_exploration_fourmis(app); break;
+        case PHASE_EXPLORATION: phase2_evaporation(app);         break;
+        case PHASE_EVAPORATION: phase3_depot_pheromones(app);    break;
+        case PHASE_DEPOT:       phase4_bilan_iteration(app);     break;
+    }
+}
+
+// Exécute une itération complète (termine la vague en cours si besoin)
+static void executer_une_iteration_complete(AppState* app) {
+    if (app->phase == PHASE_PRETE) {
+        phase1_exploration_fourmis(app);
+    }
+    if (app->phase == PHASE_EXPLORATION) {
+        phase2_evaporation(app);
+    }
+    if (app->phase == PHASE_EVAPORATION) {
+        phase3_depot_pheromones(app);
+    }
+    if (app->phase == PHASE_DEPOT) {
+        phase4_bilan_iteration(app);
+    }
 }
 
 static void explorer_permutations(const Graphe* g, int* actuel, int debut, Resultat* meilleur) {
@@ -604,8 +697,26 @@ static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
     #define TO_SX(x) (offsetX + ((x) - minX) * scale)
     #define TO_SY(y) (h - (offsetY + ((y) - minY) * scale) + (pad_top - pad_bottom) * 0.5)
 
-    // 1. Pistes de phéromones (uniquement après au moins 1 itération)
-    if (app->iteration > 0 && app->afficher_phero && app->pheromone) {
+    // 0. Tous les chemins explorés par les fourmis de la vague courante (gris translucide)
+    if (app->afficher_colonie && app->chemins_vague && app->nb_vague > 0) {
+        double alpha_col = (app->phase == PHASE_EXPLORATION) ? 0.22 : 0.08;
+        cairo_set_source_rgba(cr, 0.85, 0.85, 0.92, alpha_col);
+        cairo_set_line_width(cr, 1.0);
+        int max_draw = (app->nb_vague > 40) ? 40 : app->nb_vague;
+        for (int k = 0; k < max_draw; k++) {
+            for (int i = 0; i < n; i++) {
+                int u = app->chemins_vague[k][i];
+                int v = app->chemins_vague[k][(i + 1) % n];
+                cairo_move_to(cr, TO_SX(app->graphe.sommets[u].x), TO_SY(app->graphe.sommets[u].y));
+                cairo_line_to(cr, TO_SX(app->graphe.sommets[v].x), TO_SY(app->graphe.sommets[v].y));
+            }
+        }
+        cairo_stroke(cr);
+    }
+
+    // 1. Pistes de phéromones (dès que l'itération > 0 ou pendant les phases 2/3)
+    bool has_phero_activity = (app->iteration > 0 || app->phase >= PHASE_EVAPORATION);
+    if (has_phero_activity && app->afficher_phero && app->pheromone) {
         double maxP = 0.0;
         for (int i = 0; i < n; i++)
             for (int j = i + 1; j < n; j++)
@@ -617,7 +728,8 @@ static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
                 for (int j = i + 1; j < n; j++) {
                     double ratio = app->pheromone[i][j] / maxP;
                     if (ratio < 0.08) continue;
-                    cairo_set_source_rgba(cr, 0.20, 0.68, 1.0, ratio * 0.78);
+                    double op = (app->phase == PHASE_EVAPORATION) ? ratio * 0.45 : ratio * 0.78;
+                    cairo_set_source_rgba(cr, 0.20, 0.68, 1.0, op);
                     cairo_set_line_width(cr, 1.0 + ratio * 5.5);
                     cairo_move_to(cr, TO_SX(app->graphe.sommets[i].x), TO_SY(app->graphe.sommets[i].y));
                     cairo_line_to(cr, TO_SX(app->graphe.sommets[j].x), TO_SY(app->graphe.sommets[j].y));
@@ -640,6 +752,23 @@ static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
             cairo_line_to(cr, TO_SX(app->graphe.sommets[v].x), TO_SY(app->graphe.sommets[v].y));
         }
         cairo_stroke(cr);
+    }
+
+    // 2bis. Meilleur cycle de la vague en cours (orange, pendant les phases 1 à 3)
+    if (app->phase != PHASE_PRETE && app->meilleur_iter.chemin) {
+        cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+        cairo_set_source_rgba(cr, 1.0, 0.62, 0.04, 0.90);
+        cairo_set_line_width(cr, 2.2);
+        double dashes[] = {5.0, 4.0};
+        cairo_set_dash(cr, dashes, 2, 0);
+        for (int i = 0; i < n; i++) {
+            int u = app->meilleur_iter.chemin[i];
+            int v = app->meilleur_iter.chemin[(i + 1) % n];
+            cairo_move_to(cr, TO_SX(app->graphe.sommets[u].x), TO_SY(app->graphe.sommets[u].y));
+            cairo_line_to(cr, TO_SX(app->graphe.sommets[v].x), TO_SY(app->graphe.sommets[v].y));
+        }
+        cairo_stroke(cr);
+        cairo_set_dash(cr, NULL, 0, 0);
     }
 
     // 3. Meilleur cycle global ACO (rouge corail avec halo)
@@ -668,7 +797,7 @@ static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
         cairo_stroke(cr);
     }
 
-    // 4. Sommets stylisés (taille adaptée au nombre de villes)
+    // 4. Sommets stylisés
     double r_ext = (n > 50) ? 3.5 : 5.5;
     double r_int = (n > 50) ? 2.0 : 3.0;
     cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
@@ -699,7 +828,7 @@ static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
     }
 
     // 5. Pilule de légende flottante
-    double hud_w = (app->afficher_fb && app->meilleur_fb.chemin) ? 455.0 : 315.0;
+    double hud_w = (app->afficher_fb && app->meilleur_fb.chemin) ? 560.0 : 425.0;
     cairo_rounded_rect(cr, 14.0, 12.0, hud_w, 28.0, 14.0);
     cairo_set_source_rgba(cr, 0.16, 0.16, 0.19, 0.88);
     cairo_fill_preserve(cr);
@@ -713,21 +842,35 @@ static gboolean on_draw_graph(GtkWidget* widget, cairo_t* cr, gpointer data) {
     cairo_fill(cr);
     cairo_set_source_rgb(cr, 0.92, 0.92, 0.95);
     cairo_move_to(cr, 37.0, 30.0);
-    cairo_show_text(cr, "Meilleur ACO");
+    cairo_show_text(cr, "Record ACO");
 
-    cairo_set_source_rgb(cr, 0.20, 0.68, 1.0);
-    cairo_arc(cr, 145.0, 26.0, 4.0, 0, 2 * M_PI);
+    cairo_set_source_rgb(cr, 1.0, 0.62, 0.04);
+    cairo_arc(cr, 122.0, 26.0, 4.0, 0, 2 * M_PI);
     cairo_fill(cr);
     cairo_set_source_rgb(cr, 0.92, 0.92, 0.95);
-    cairo_move_to(cr, 154.0, 30.0);
+    cairo_move_to(cr, 131.0, 30.0);
+    cairo_show_text(cr, "Meilleur vague");
+
+    cairo_set_source_rgb(cr, 0.20, 0.68, 1.0);
+    cairo_arc(cr, 235.0, 26.0, 4.0, 0, 2 * M_PI);
+    cairo_fill(cr);
+    cairo_set_source_rgb(cr, 0.92, 0.92, 0.95);
+    cairo_move_to(cr, 244.0, 30.0);
     cairo_show_text(cr, "Phéromones");
+
+    cairo_set_source_rgba(cr, 0.85, 0.85, 0.92, 0.65);
+    cairo_arc(cr, 335.0, 26.0, 4.0, 0, 2 * M_PI);
+    cairo_fill(cr);
+    cairo_set_source_rgb(cr, 0.92, 0.92, 0.95);
+    cairo_move_to(cr, 344.0, 30.0);
+    cairo_show_text(cr, "Fourmis");
 
     if (app->afficher_fb && app->meilleur_fb.chemin) {
         cairo_set_source_rgb(cr, 0.19, 0.82, 0.35);
-        cairo_arc(cr, 265.0, 26.0, 4.0, 0, 2 * M_PI);
+        cairo_arc(cr, 412.0, 26.0, 4.0, 0, 2 * M_PI);
         cairo_fill(cr);
         cairo_set_source_rgb(cr, 0.92, 0.92, 0.95);
-        cairo_move_to(cr, 274.0, 30.0);
+        cairo_move_to(cr, 421.0, 30.0);
         cairo_show_text(cr, "Optimal Force Brute");
     }
 
@@ -756,14 +899,14 @@ static gboolean on_draw_chart(GtkWidget* widget, cairo_t* cr, gpointer data) {
     cairo_set_font_size(cr, 11.0);
     cairo_set_source_rgb(cr, 0.60, 0.60, 0.63);
     cairo_move_to(cr, 16, 22);
-    cairo_show_text(cr, "CONVERGENCE DU POIDS  ·  INFLUENCE DE α ET β");
+    cairo_show_text(cr, "CONVERGENCE DU POIDS  ·  ROUGE = RECORD GLOBAL  |  ORANGE = MOYENNE COLONIE");
 
     if (app->iteration < 2) {
         cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
         cairo_set_font_size(cr, 12.0);
         cairo_set_source_rgb(cr, 0.48, 0.48, 0.52);
         cairo_move_to(cr, 16, h / 2.0 + 6);
-        cairo_show_text(cr, "Cliquez sur « 1 Pas » ou « Lancer » pour observer la courbe d'apprentissage.");
+        cairo_show_text(cr, "Exécutez au moins 2 itérations pour tracer la courbe de convergence.");
         return FALSE;
     }
 
@@ -862,7 +1005,7 @@ static void mettre_a_jour_diagnostic_params(AppState* app) {
     const char* msg;
 
     if (a == 0.0 && b == 0.0) {
-        msg = "α = 0, β = 0 : Exploration purement aléatoire (aucune mémoire ni distance).";
+        msg = "α = 0, β = 0 : Marche purement aléatoire (ni mémoire, ni distance).";
     } else if (a == 0.0) {
         msg = "α = 0 : Phéromones ignorées → comportement glouton stochastique.";
     } else if (b == 0.0) {
@@ -875,6 +1018,60 @@ static void mettre_a_jour_diagnostic_params(AppState* app) {
         msg = "Équilibre α / β : Compromis optimal entre mémoire et proximité.";
     }
     gtk_label_set_text(GTK_LABEL(app->lbl_diag), msg);
+}
+
+static void mettre_a_jour_panneau_etape(AppState* app) {
+    char buf[512];
+    switch (app->phase) {
+        case PHASE_PRETE:
+            if (app->iteration == 0) {
+                snprintf(buf, sizeof(buf),
+                    "<b>Phase 0 · Initialisation</b>\n"
+                    "<span foreground='#98989D'>Matrice τ[i][j] = 1.0 sur toutes les arêtes.\n"
+                    "Cliquez sur <b>Sous-étape</b> pour lancer les %d fourmis.</span>",
+                    app->nb_fourmis);
+            } else {
+                snprintf(buf, sizeof(buf),
+                    "<b>Phase 4/4 · Itération %d terminée</b>\n"
+                    "<span foreground='#30D158'>Record global : %.2f</span>  |  "
+                    "<span foreground='#FF9F0A'>Moy. colonie : %.2f</span>\n"
+                    "<span foreground='#98989D'>Prêt pour la vague suivante (Phase 1).</span>",
+                    app->iteration,
+                    app->meilleur_global.poids,
+                    app->hist_moyenne[app->iteration - 1]);
+            }
+            break;
+
+        case PHASE_EXPLORATION:
+            snprintf(buf, sizeof(buf),
+                "<b>Phase 1/4 · Exploration (%d fourmis)</b>\n"
+                "<span foreground='#64D2FF'>Formule : p = τ^%.1f × (1/d)^%.1f</span>\n"
+                "Meilleur de la vague : <span foreground='#FF9F0A'><b>%.2f</b></span> (moy. %.2f)\n"
+                "<span foreground='#98989D'>→ Prochaine sous-étape : Évaporation (1 − ρ).</span>",
+                app->nb_vague, app->alpha, app->beta,
+                app->meilleur_iter.poids,
+                app->somme_poids_vague / app->nb_vague);
+            break;
+
+        case PHASE_EVAPORATION:
+            snprintf(buf, sizeof(buf),
+                "<b>Phase 2/4 · Évaporation des pistes</b>\n"
+                "<span foreground='#64D2FF'>Formule : τ ← (1 − %.2f) × τ = %.2f × τ</span>\n"
+                "Les anciennes pistes s'estompent pour éviter les minima locaux.\n"
+                "<span foreground='#98989D'>→ Prochaine sous-étape : Dépôt Q / L_k.</span>",
+                app->rho, 1.0 - app->rho);
+            break;
+
+        case PHASE_DEPOT:
+            snprintf(buf, sizeof(buf),
+                "<b>Phase 3/4 · Dépôt de phéromones</b>\n"
+                "<span foreground='#64D2FF'>Formule : τ ← τ + (%.0f / L_k)</span>\n"
+                "Dépôt max sur le meilleur cycle : <b>+%.3f</b>\n"
+                "<span foreground='#98989D'>→ Prochaine sous-étape : Bilan & Courbe.</span>",
+                app->Q, app->max_depot_vague);
+            break;
+    }
+    gtk_label_set_markup(GTK_LABEL(app->lbl_etape_algo), buf);
 }
 
 static void rafraichir_interface(AppState* app) {
@@ -922,20 +1119,28 @@ static void rafraichir_interface(AppState* app) {
     }
     gtk_label_set_markup(GTK_LABEL(app->lbl_kpi_opt), buf_opt);
 
+    mettre_a_jour_panneau_etape(app);
     gtk_widget_queue_draw(app->drawing_graph);
     gtk_widget_queue_draw(app->drawing_chart);
+}
+
+static void on_substep_clicked(GtkButton* btn, gpointer data) {
+    (void)btn;
+    AppState* app = (AppState*)data;
+    executer_une_sous_etape(app);
+    rafraichir_interface(app);
 }
 
 static void on_step_clicked(GtkButton* btn, gpointer data) {
     (void)btn;
     AppState* app = (AppState*)data;
-    executer_une_iteration_aco(app);
+    executer_une_iteration_complete(app);
     rafraichir_interface(app);
 }
 
 static gboolean on_timer_tick(gpointer data) {
     AppState* app = (AppState*)data;
-    executer_une_iteration_aco(app);
+    executer_une_iteration_complete(app);
     rafraichir_interface(app);
     return G_SOURCE_CONTINUE;
 }
@@ -1046,12 +1251,19 @@ static void on_toggle_phero(GtkToggleButton* tb, gpointer data) {
 static void on_toggle_noms(GtkToggleButton* tb, gpointer data) {
     AppState* app = (AppState*)data;
     app->afficher_noms = gtk_toggle_button_get_active(tb);
-    gtk_button_set_label(GTK_BUTTON(tb), app->afficher_noms ? "● Noms sommets" : "○ Noms sommets");
+    gtk_button_set_label(GTK_BUTTON(tb), app->afficher_noms ? "● Noms" : "○ Noms");
+    gtk_widget_queue_draw(app->drawing_graph);
+}
+
+static void on_toggle_colonie(GtkToggleButton* tb, gpointer data) {
+    AppState* app = (AppState*)data;
+    app->afficher_colonie = gtk_toggle_button_get_active(tb);
+    gtk_button_set_label(GTK_BUTTON(tb), app->afficher_colonie ? "● Fourmis" : "○ Fourmis");
     gtk_widget_queue_draw(app->drawing_graph);
 }
 
 static GtkWidget* creer_carte(const char* titre, GtkWidget** contenu_box) {
-    GtkWidget* card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+    GtkWidget* card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 7);
     gtk_style_context_add_class(gtk_widget_get_style_context(card), "card");
 
     GtkWidget* lbl = gtk_label_new(titre);
@@ -1059,7 +1271,7 @@ static GtkWidget* creer_carte(const char* titre, GtkWidget** contenu_box) {
     gtk_style_context_add_class(gtk_widget_get_style_context(lbl), "section-title");
     gtk_box_pack_start(GTK_BOX(card), lbl, FALSE, FALSE, 0);
 
-    *contenu_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+    *contenu_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 7);
     gtk_box_pack_start(GTK_BOX(card), *contenu_box, FALSE, FALSE, 0);
     return card;
 }
@@ -1081,12 +1293,13 @@ int main(int argc, char** argv) {
     app.vitesse_ms = 110;
     app.afficher_phero = true;
     app.afficher_noms = true;
+    app.afficher_colonie = true;
 
     generer_graphe_aleatoire(&app, 10);
 
     GtkWidget* window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(window), "TSP · Colonies de Fourmis (ACO)");
-    gtk_window_set_default_size(GTK_WINDOW(window), 1240, 780);
+    gtk_window_set_default_size(GTK_WINDOW(window), 1260, 820);
     g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 
     GtkWidget* root = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 14);
@@ -1098,7 +1311,7 @@ int main(int argc, char** argv) {
     gtk_box_pack_start(GTK_BOX(root), left_col, TRUE, TRUE, 0);
 
     app.drawing_graph = gtk_drawing_area_new();
-    gtk_widget_set_size_request(app.drawing_graph, 680, 480);
+    gtk_widget_set_size_request(app.drawing_graph, 680, 500);
     g_signal_connect(app.drawing_graph, "draw", G_CALLBACK(on_draw_graph), &app);
 
     app.drawing_chart = gtk_drawing_area_new();
@@ -1109,8 +1322,8 @@ int main(int argc, char** argv) {
     gtk_box_pack_start(GTK_BOX(left_col), app.drawing_chart, FALSE, FALSE, 0);
 
     // --- COLONNE DROITE : PANNEAU DE CONTRÔLE ---
-    GtkWidget* right_col = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
-    gtk_widget_set_size_request(right_col, 370, -1);
+    GtkWidget* right_col = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    gtk_widget_set_size_request(right_col, 390, -1);
     gtk_box_pack_start(GTK_BOX(root), right_col, FALSE, FALSE, 0);
 
     // 0. Cartes KPIs
@@ -1131,24 +1344,36 @@ int main(int argc, char** argv) {
     gtk_box_pack_start(GTK_BOX(kpi_row), app.lbl_kpi_opt, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(right_col), kpi_row, FALSE, FALSE, 0);
 
-    // 1. Carte Exécution Pas-à-Pas
+    // 1. Carte Exécution Pas-à-Pas & Déroulement en direct
     GtkWidget* box_exec;
-    GtkWidget* card_exec = creer_carte("EXÉCUTION PAS-À-PAS", &box_exec);
+    GtkWidget* card_exec = creer_carte("EXÉCUTION PAS-À-PAS & DÉROULEMENT", &box_exec);
 
-    GtkWidget* row_btns1 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-    GtkWidget* btn_step = gtk_button_new_with_label("⏭  1 Pas");
+    GtkWidget* row_btns1 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+    GtkWidget* btn_substep = gtk_button_new_with_label("▸ Sous-étape");
+    gtk_style_context_add_class(gtk_widget_get_style_context(btn_substep), "step-phase");
+    GtkWidget* btn_step = gtk_button_new_with_label("⏭ 1 Itération");
     gtk_style_context_add_class(gtk_widget_get_style_context(btn_step), "primary");
-    app.btn_play = gtk_button_new_with_label("▶  Lancer");
-    GtkWidget* btn_reset = gtk_button_new_with_label("↺  Reset");
+    app.btn_play = gtk_button_new_with_label("▶ Lancer");
+    GtkWidget* btn_reset = gtk_button_new_with_label("↺");
 
+    g_signal_connect(btn_substep, "clicked", G_CALLBACK(on_substep_clicked), &app);
     g_signal_connect(btn_step, "clicked", G_CALLBACK(on_step_clicked), &app);
     g_signal_connect(app.btn_play, "clicked", G_CALLBACK(on_play_clicked), &app);
     g_signal_connect(btn_reset, "clicked", G_CALLBACK(on_reset_clicked), &app);
 
+    gtk_box_pack_start(GTK_BOX(row_btns1), btn_substep, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(row_btns1), btn_step, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(row_btns1), app.btn_play, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(row_btns1), btn_reset, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(box_exec), row_btns1, FALSE, FALSE, 0);
+
+    // Encart pédagogique affichant la phase courante et les calculs
+    app.lbl_etape_algo = gtk_label_new("");
+    gtk_label_set_line_wrap(GTK_LABEL(app.lbl_etape_algo), TRUE);
+    gtk_label_set_xalign(GTK_LABEL(app.lbl_etape_algo), 0.0);
+    gtk_widget_set_size_request(app.lbl_etape_algo, 340, 68);
+    gtk_style_context_add_class(gtk_widget_get_style_context(app.lbl_etape_algo), "algo-box");
+    gtk_box_pack_start(GTK_BOX(box_exec), app.lbl_etape_algo, FALSE, FALSE, 0);
 
     GtkWidget* row_speed = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     app.spin_vitesse = gtk_spin_button_new_with_range(10, 2000, 10);
@@ -1172,7 +1397,7 @@ int main(int argc, char** argv) {
     GtkWidget* card_params = creer_carte("INFLUENCE DES PARAMÈTRES (α & β)", &box_params);
 
     GtkWidget* grid_p = gtk_grid_new();
-    gtk_grid_set_row_spacing(GTK_GRID(grid_p), 8);
+    gtk_grid_set_row_spacing(GTK_GRID(grid_p), 6);
     gtk_grid_set_column_spacing(GTK_GRID(grid_p), 10);
 
     app.spin_alpha = gtk_spin_button_new_with_range(0.0, 10.0, 0.2);
@@ -1209,13 +1434,13 @@ int main(int argc, char** argv) {
     app.lbl_diag = gtk_label_new("");
     gtk_label_set_line_wrap(GTK_LABEL(app.lbl_diag), TRUE);
     gtk_label_set_xalign(GTK_LABEL(app.lbl_diag), 0.0);
-    gtk_widget_set_size_request(app.lbl_diag, 320, -1);
+    gtk_widget_set_size_request(app.lbl_diag, 340, -1);
     gtk_style_context_add_class(gtk_widget_get_style_context(app.lbl_diag), "diag-pill");
     gtk_box_pack_start(GTK_BOX(box_params), app.lbl_diag, FALSE, FALSE, 0);
 
     gtk_box_pack_start(GTK_BOX(right_col), card_params, FALSE, FALSE, 0);
 
-    // 3. Carte Données du Graphe & Calques (Pilules toggle sans SVG)
+    // 3. Carte Données du Graphe & Calques
     GtkWidget* box_graph;
     GtkWidget* card_graph = creer_carte("GRAPHE & CALQUES", &box_graph);
 
@@ -1232,18 +1457,24 @@ int main(int argc, char** argv) {
     gtk_box_pack_start(GTK_BOX(row_alea), btn_alea, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(box_graph), row_alea, FALSE, FALSE, 0);
 
-    GtkWidget* row_pills = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    GtkWidget* row_pills = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
     GtkWidget* pill_phero = gtk_toggle_button_new_with_label("● Phéromones");
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pill_phero), TRUE);
     gtk_style_context_add_class(gtk_widget_get_style_context(pill_phero), "pill-toggle");
     g_signal_connect(pill_phero, "toggled", G_CALLBACK(on_toggle_phero), &app);
 
-    GtkWidget* pill_noms = gtk_toggle_button_new_with_label("● Noms sommets");
+    GtkWidget* pill_colonie = gtk_toggle_button_new_with_label("● Fourmis");
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pill_colonie), TRUE);
+    gtk_style_context_add_class(gtk_widget_get_style_context(pill_colonie), "pill-toggle");
+    g_signal_connect(pill_colonie, "toggled", G_CALLBACK(on_toggle_colonie), &app);
+
+    GtkWidget* pill_noms = gtk_toggle_button_new_with_label("● Noms");
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(pill_noms), TRUE);
     gtk_style_context_add_class(gtk_widget_get_style_context(pill_noms), "pill-toggle");
     g_signal_connect(pill_noms, "toggled", G_CALLBACK(on_toggle_noms), &app);
 
     gtk_box_pack_start(GTK_BOX(row_pills), pill_phero, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(row_pills), pill_colonie, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(row_pills), pill_noms, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(box_graph), row_pills, FALSE, FALSE, 0);
 
