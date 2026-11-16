@@ -1101,7 +1101,7 @@ static int cmp_cand_desc(const void* a, const void* b) {
 }
 
 static void draw_detail_box(AppState* app) {
-    char sig[256];
+    char sig[512];
     if (!app->A) {
         snprintf(sig, sizeof(sig), "IDLE|%s", app->log_msg);
     } else {
