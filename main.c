@@ -243,8 +243,8 @@ Resultat* explorer(Graphe graphe, int n, double** pheromone, int sommet_depart, 
 
         poids += distance;
 
-        pheromone[actuel][prochain] += Q;
-        pheromone[prochain][actuel] += Q;
+        pheromone[actuel][prochain] += Q / distance_euc(graphe.graphe[actuel], graphe.graphe[prochain]);
+        pheromone[prochain][actuel] += Q / distance_euc(graphe.graphe[actuel], graphe.graphe[prochain]);
 
         resultat->chemin[nb_visites] = prochain;
 
@@ -259,8 +259,8 @@ Resultat* explorer(Graphe graphe, int n, double** pheromone, int sommet_depart, 
         graphe.graphe[sommet_depart]
     );
 
-    pheromone[actuel][sommet_depart] += Q;
-    pheromone[sommet_depart][actuel] += Q;
+    pheromone[actuel][sommet_depart] += Q / distance_euc(graphe.graphe[actuel], graphe.graphe[sommet_depart]);
+    pheromone[sommet_depart][actuel] += Q / distance_euc(graphe.graphe[actuel], graphe.graphe[sommet_depart]);
 
     resultat->chemin[n] = sommet_depart;
 
