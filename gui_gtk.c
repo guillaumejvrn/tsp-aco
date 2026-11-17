@@ -1694,7 +1694,6 @@ int main(int argc, char** argv) {
 
     app.combo_mode = gtk_combo_box_text_new();
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app.combo_mode), "Dépôt : Q par arête (code C)");
-    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app.combo_mode), "Dépôt : Q ÷ longueur (classique)");
     gtk_combo_box_set_active(GTK_COMBO_BOX(app.combo_mode), 0);
     gtk_box_pack_start(GTK_BOX(b_params), app.combo_mode, FALSE, FALSE, 2);
 
